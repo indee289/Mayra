@@ -278,7 +278,7 @@ const App = (() => {
       try {
         const r = await MayraHTTP.request({
           tag: 'KEY-SAVE',
-          url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+          url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           data: { contents: [{ role: 'user', parts: [{ text: 'hi' }] }] }

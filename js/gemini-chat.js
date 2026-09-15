@@ -19,7 +19,7 @@
 const GeminiChat = (() => {
 
   const REST_HOST = 'https://generativelanguage.googleapis.com';
-  const MODEL     = 'gemini-2.0-flash';
+  const MODEL     = 'gemini-3.6-flash';
   const MAX_RETRIES = 2;
 
   /* OpenAI-compatible provider config (Groq + OpenAI share the shape) */

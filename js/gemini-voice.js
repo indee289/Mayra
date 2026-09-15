@@ -13,7 +13,7 @@ const GeminiVoice = (() => {
 
   /* ── Constants ── */
   const WS_HOST      = 'generativelanguage.googleapis.com';
-  const MODEL        = 'models/gemini-2.0-flash-live-001';
+  const MODEL        = 'models/gemini-live-2.5-flash-native-audio';
   const SAMPLE_RATE  = 16000;   // input PCM: 16kHz mono
   const OUT_RATE     = 24000;   // output PCM: 24kHz
   const CHUNK_MS     = 100;     // audio chunk interval
