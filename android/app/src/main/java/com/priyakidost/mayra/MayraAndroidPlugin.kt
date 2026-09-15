@@ -11,16 +11,34 @@
  */
 package com.priyakidost.mayra
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract
+import android.provider.Settings
 import com.getcapacitor.JSObject
+import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
+import com.getcapacitor.annotation.PermissionCallback
 
-@CapacitorPlugin(name = "MayraAndroid")
+@CapacitorPlugin(
+    name = "MayraAndroid",
+    permissions = [
+        Permission(alias = "microphone", strings = [Manifest.permission.RECORD_AUDIO]),
+        Permission(alias = "contacts", strings = [Manifest.permission.READ_CONTACTS]),
+        Permission(
+            alias = "location",
+            strings = [
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ]
+        )
+    ]
+)
 class MayraAndroidPlugin : Plugin() {
 
     // ── openApp ──────────────────────────────────────────────
@@ -133,11 +151,79 @@ class MayraAndroidPlugin : Plugin() {
     }
 
     // ── requestPermission ─────────────────────────────────────
+    // Real Capacitor 6 runtime permission request. 'permission' is one of
+    // the declared aliases: 'microphone' | 'contacts' | 'location'.
     @PluginMethod
     fun requestPermission(call: PluginCall) {
-        val perm = call.getString("permission") ?: run { call.reject("permission required"); return }
-        // Capacitor handles runtime permissions natively via @NativePermission annotations.
-        // This stub returns false so the JS layer falls through to its own handling.
-        call.resolve(JSObject().put("granted", false))
+        val alias = call.getString("permission")
+        if (alias.isNullOrBlank() || !isKnownAlias(alias)) {
+            // Unknown/blank alias — never crash, just report not granted.
+            call.resolve(JSObject().put("granted", false))
+            return
+        }
+        if (getPermissionState(alias) == PermissionState.GRANTED) {
+            call.resolve(JSObject().put("granted", true))
+            return
+        }
+        requestPermissionForAlias(alias, call, "permissionCallback")
     }
+
+    // ── permissionCallback ────────────────────────────────────
+    // Invoked by Capacitor after the OS permission dialog resolves.
+    // The original PluginCall (with its "permission" arg) is re-delivered.
+    @PermissionCallback
+    private fun permissionCallback(call: PluginCall) {
+        val alias = call.getString("permission")
+        if (alias.isNullOrBlank() || !isKnownAlias(alias)) {
+            call.resolve(JSObject().put("granted", false))
+            return
+        }
+        val granted = getPermissionState(alias) == PermissionState.GRANTED
+        call.resolve(JSObject().put("granted", granted))
+    }
+
+    // ── checkPermission ───────────────────────────────────────
+    // Reports the current state without prompting: 'granted' | 'denied' | 'prompt'.
+    @PluginMethod
+    fun checkPermission(call: PluginCall) {
+        val alias = call.getString("permission")
+        if (alias.isNullOrBlank() || !isKnownAlias(alias)) {
+            call.resolve(JSObject().put("status", "denied"))
+            return
+        }
+        val status = when (getPermissionState(alias)) {
+            PermissionState.GRANTED -> "granted"
+            PermissionState.DENIED -> "denied"
+            else -> "prompt" // PROMPT / PROMPT_WITH_RATIONALE
+        }
+        call.resolve(JSObject().put("status", status))
+    }
+
+    // ── openAccessibilitySettings ─────────────────────────────
+    // Deep-links the user to the system Accessibility settings screen.
+    @PluginMethod
+    fun openAccessibilitySettings(call: PluginCall) {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        call.resolve(JSObject().put("success", true))
+    }
+
+    // ── isAccessibilityEnabled ────────────────────────────────
+    // Reports whether an accessibility service belonging to THIS app is enabled.
+    // No AccessibilityService class is shipped, so this returns false until the
+    // user enables one manually — acceptable per the minimum spec.
+    @PluginMethod
+    fun isAccessibilityEnabled(call: PluginCall) {
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        )
+        val enabled = enabledServices?.contains(context.packageName) == true
+        call.resolve(JSObject().put("enabled", enabled))
+    }
+
+    // ── Helper ────────────────────────────────────────────────
+    private fun isKnownAlias(alias: String): Boolean =
+        alias == "microphone" || alias == "contacts" || alias == "location"
 }

@@ -1,0 +1,14 @@
+{
+  "task_id": "task-mayra-apikey-multiprovider-permissions",
+  "task_description": "Fix three issues in the Mayra (Priya ki Dost) Capacitor Android app: (1) Gemini API keys wrongly rejected because a WebView network/transport failure is treated as an invalid key — make validation robust and provider-aware, saving the key on network failure and only rejecting on genuine auth errors. (2) Add multi-provider support (Gemini / Groq / OpenAI-ChatGPT) with a provider picker in Settings and onboarding, routing the chat pipeline to the chosen provider while reusing MAYRA_SYSTEM_PROMPT and chat history; Gemini keeps function-calling and voice, Groq/OpenAI are text-only. (3) Implement REAL Android runtime permissions (microphone, contacts, location) via the Capacitor 6 permission machinery in MayraAndroidPlugin.kt (currently a stub), plus an accessibility deep-link path, and surface all four in Settings + onboarding with real states. Additive only: must not break the existing Gemini voice/chat/function-calling, onboarding, dark mode, or Iconsax UI. Sandbox is INTEGRATIONS_ONLY (no network): verification is static (node --check, XML well-formedness, JS<->Kotlin consistency). The APK is built by GitHub Actions.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "n/a",
+    "tests": "n/a",
+    "test_quality": "n/a",
+    "docker_build": "skipped",
+    "summary": "INTEGRATIONS_ONLY sandbox: no network, so no npm/gradle/cap build or live API call is possible; the real APK is built by GitHub Actions. Static verification passed: `unset NODE_OPTIONS && node --check` on js/app.js, js/storage.js, js/android-bridge.js, js/gemini-chat.js, js/gemini-voice.js, js/functions.js, sw.js all pass; AndroidManifest.xml is well-formed XML; MayraAndroidPlugin.kt @PluginMethod names (openApp/openUrl/makeCall/callContact/openSettings/requestPermission/checkPermission/openAccessibilitySettings/isAccessibilityEnabled) and @Permission aliases (microphone/contacts/location) match the JS android-bridge.js calls and result keys ({granted}/{status}/{enabled}/{success}) exactly; all 28 App.* methods referenced in index.html resolve to entries in the App public export; sw.js never-cache bypass includes generativelanguage.googleapis.com + api.groq.com + api.openai.com; Gemini function-calling path (function_declarations/_processResponse/MayraFunctions) is intact; voice orb gates on Storage.getProvider()!=='gemini'; node scripts/copy-web.js copies cleanly. No test suite exists in the repo (test_quality n/a). No .github/workflows files were touched."
+  }
+}

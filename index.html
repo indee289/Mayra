@@ -85,6 +85,14 @@
     <symbol id="isax-call" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21.97 18.33c0 .36-.08.73-.25 1.09-.17.36-.39.7-.68 1.02-.49.54-1.03.93-1.64 1.18-.6.25-1.25.38-1.95.38-1.02 0-2.11-.24-3.26-.73a17.6 17.6 0 0 1-3.44-1.98 28.8 28.8 0 0 1-3.28-2.8 28.5 28.5 0 0 1-2.79-3.27A17.9 17.9 0 0 1 2.72 9.8C2.24 8.66 2 7.57 2 6.53c0-.68.12-1.33.36-1.93.24-.61.62-1.17 1.15-1.67C4.15 2.31 4.85 2 5.59 2c.28 0 .56.06.81.18.26.12.49.3.67.56l2.32 3.27c.18.25.31.48.4.7.09.21.14.42.14.61 0 .24-.07.48-.21.71-.13.23-.32.47-.56.71l-.76.79c-.11.11-.16.24-.16.4 0 .08.01.15.03.23.03.08.06.14.08.2.18.33.49.76.93 1.28.45.52.93 1.05 1.45 1.58.54.53 1.06 1.02 1.59 1.47.52.44.95.74 1.29.92.05.02.11.05.18.08.08.03.16.04.25.04.17 0 .3-.06.41-.17l.76-.75c.25-.25.49-.44.72-.56.23-.14.46-.21.71-.21.19 0 .39.04.61.13.22.09.45.22.7.39l3.31 2.35c.26.18.44.39.55.64.1.25.16.5.16.78Z"/>
     </symbol>
+    <symbol id="isax-location" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 13.43a3.12 3.12 0 1 0 0-6.24 3.12 3.12 0 0 0 0 6.24Z"/>
+      <path d="M3.62 8.49c1.97-8.66 14.8-8.65 16.76.01 1.15 5.08-2.01 9.38-4.78 12.04a5.19 5.19 0 0 1-7.21 0c-2.76-2.66-5.92-6.97-4.77-12.05Z"/>
+    </symbol>
+    <symbol id="isax-security-safe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10.49 2.23 5.5 4.11c-1.15.43-2.09 1.79-2.09 3.02v7.41c0 1.18.78 2.74 1.73 3.45l4.3 3.21c1.41 1.06 3.73 1.06 5.14 0l4.3-3.21c.95-.71 1.73-2.27 1.73-3.45V7.13c0-1.23-.94-2.59-2.09-3.02l-4.99-1.88a4.13 4.13 0 0 0-2.84 0Z"/>
+      <path d="m9.05 11.87 1.95 1.95 3.95-3.95"/>
+    </symbol>
   </svg>
 
   <!-- ═══════════════════════════════════════════
@@ -135,7 +143,12 @@
       <div class="onboard-slide" data-slide="apikey">
         <div class="onboard-icon"><svg class="isax"><use href="#isax-key"/></svg></div>
         <h2>Ek chhoti si setting</h2>
-        <p>Baat karne ke liye mujhe tumhara Gemini API key chahiye.<br>Yeh sirf tumhare device par safe rehta hai — kahin nahi jaata.</p>
+        <p>Baat karne ke liye mujhe ek AI key chahiye. Tum Gemini, Groq ya ChatGPT — jo pasand ho, wahi chuno.<br>Yeh sirf tumhare device par safe rehta hai — kahin nahi jaata.</p>
+        <select id="onboard-provider" class="provider-select" onchange="App.onProviderChange('onboard')" aria-label="AI provider chuno">
+          <option value="gemini">Gemini (Google)</option>
+          <option value="groq">Groq</option>
+          <option value="openai">ChatGPT (OpenAI)</option>
+        </select>
         <div class="api-key-input-wrap">
           <input type="password" id="onboard-api-key" placeholder="Apna API key yahan daalo..." autocomplete="off" spellcheck="false" />
           <button class="toggle-eye" onclick="App.toggleApiKeyVisibility('onboard-api-key')" aria-label="Show/hide key">👁</button>
@@ -160,6 +173,24 @@
         <h2>Contacts access</h2>
         <p>Taaki jab aap kahen "Mom ko call karo",<br>Mayra sahi contact dhoondh sake.</p>
         <button class="btn-primary" onclick="App.requestContactsPermission()">Contacts allow karein</button>
+        <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
+      </div>
+
+      <!-- Slide: Location Permission -->
+      <div class="onboard-slide" data-slide="location">
+        <div class="onboard-icon"><svg class="isax"><use href="#isax-location"/></svg></div>
+        <h2>Location access</h2>
+        <p>Taaki jab aap poochho "yahaan aas-paas kya hai",<br>Mayra sahi jagah bata sake.</p>
+        <button class="btn-primary" onclick="App.requestLocationPermission()">Allow location</button>
+        <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
+      </div>
+
+      <!-- Slide: Accessibility Permission -->
+      <div class="onboard-slide" data-slide="accessibility">
+        <div class="onboard-icon"><svg class="isax"><use href="#isax-security-safe"/></svg></div>
+        <h2>Accessibility access</h2>
+        <p>Isse Mayra doosri apps mein bhi tumhari help kar sakti hai —<br>jaise tap ya scroll karke kaam aasaan banana. Yeh tumhare device par hi rehta hai.</p>
+        <button class="btn-primary" onclick="App.openAccessibilitySettings()">Enable karein</button>
         <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
       </div>
 
@@ -378,7 +409,13 @@
     <div class="settings-body">
 
       <section class="settings-section">
-        <h4 class="settings-section-title"><svg class="isax"><use href="#isax-key"/></svg> Gemini API Key</h4>
+        <h4 class="settings-section-title"><svg class="isax"><use href="#isax-key"/></svg> AI API Key</h4>
+        <p class="settings-hint">Jo AI chuno, uska key daalo — Gemini, Groq ya ChatGPT. Awaaz wali baat abhi sirf Gemini se hoti hai ❤️</p>
+        <select id="settings-provider" class="provider-select" onchange="App.onProviderChange('settings')" aria-label="AI provider chuno">
+          <option value="gemini">Gemini (Google)</option>
+          <option value="groq">Groq</option>
+          <option value="openai">ChatGPT (OpenAI)</option>
+        </select>
         <div class="api-key-input-wrap">
           <input type="password" id="settings-api-key" placeholder="Apna Gemini API key daalo..." autocomplete="off" spellcheck="false" />
           <button class="toggle-eye" onclick="App.toggleApiKeyVisibility('settings-api-key')" aria-label="Toggle visibility">👁</button>
@@ -388,7 +425,7 @@
           <button class="btn-primary small" onclick="App.validateAndSaveApiKey('settings')">Save</button>
           <button class="btn-ghost small" onclick="App.clearApiKey()">Remove</button>
         </div>
-        <p class="settings-hint">Tumhara key sirf tumhare device par secure store hota hai. Hum ise kabhi log, share, ya store nahi karte — yeh directly Google ke API ko jaata hai.</p>
+        <p class="settings-hint">Tumhara key sirf tumhare device par secure store hota hai. Hum ise kabhi log, share, ya store nahi karte — yeh sirf tumhare chune hue provider (Gemini / Groq / OpenAI) ke API ko jaata hai.</p>
       </section>
 
       <section class="settings-section">
@@ -415,11 +452,31 @@
         <h4 class="settings-section-title"><svg class="isax"><use href="#isax-setting-2"/></svg> Permissions</h4>
         <div class="permission-item">
           <span><svg class="isax"><use href="#isax-microphone"/></svg> Microphone</span>
-          <span class="perm-status" id="perm-mic">Checking...</span>
+          <span class="perm-actions">
+            <span class="perm-status" id="perm-mic">Checking...</span>
+            <button class="perm-action" onclick="App.requestPermissionFromSettings('microphone')">Allow karo</button>
+          </span>
         </div>
         <div class="permission-item">
           <span><svg class="isax"><use href="#isax-call"/></svg> Contacts</span>
-          <span class="perm-status" id="perm-contacts">Checking...</span>
+          <span class="perm-actions">
+            <span class="perm-status" id="perm-contacts">Checking...</span>
+            <button class="perm-action" onclick="App.requestPermissionFromSettings('contacts')">Allow karo</button>
+          </span>
+        </div>
+        <div class="permission-item">
+          <span><svg class="isax"><use href="#isax-location"/></svg> Location</span>
+          <span class="perm-actions">
+            <span class="perm-status" id="perm-location">Checking...</span>
+            <button class="perm-action" onclick="App.requestPermissionFromSettings('location')">Allow karo</button>
+          </span>
+        </div>
+        <div class="permission-item">
+          <span><svg class="isax"><use href="#isax-security-safe"/></svg> Accessibility</span>
+          <span class="perm-actions">
+            <span class="perm-status" id="perm-accessibility">Checking...</span>
+            <button class="perm-action" onclick="App.openAccessibilitySettings()">Enable karo</button>
+          </span>
         </div>
         <button class="btn-ghost small" onclick="App.openSystemSettings()">System settings mein jaao</button>
       </section>

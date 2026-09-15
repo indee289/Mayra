@@ -6,7 +6,8 @@
    - App shell (local HTML/CSS/JS/icons/svg): cache-first, so the
      UI opens instantly and works offline.
    - Google Fonts: stale-while-revalidate (nice-to-have, cached).
-   - Gemini API + any generativelanguage.googleapis.com traffic:
+   - LLM API traffic (Gemini generativelanguage.googleapis.com,
+     Groq api.groq.com, OpenAI api.openai.com):
      NEVER cached — always network. (Real-time + privacy.)
    - WebSocket (voice) traffic bypasses the SW entirely by nature.
 ═══════════════════════════════════════════════════════════ */
@@ -66,8 +67,10 @@ self.addEventListener('fetch', (event) => {
   /* Only handle GET */
   if (req.method !== 'GET') return;
 
-  /* NEVER cache Gemini / Google AI API traffic — always live network. */
-  if (url.hostname.includes('generativelanguage.googleapis.com')) {
+  /* NEVER cache LLM API traffic (Gemini / Groq / OpenAI) — always live network. */
+  if (url.hostname.includes('generativelanguage.googleapis.com') ||
+      url.hostname.includes('api.groq.com') ||
+      url.hostname.includes('api.openai.com')) {
     return; /* let the browser handle it normally */
   }
 

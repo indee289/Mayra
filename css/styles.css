@@ -350,6 +350,24 @@ a { text-decoration: none; }
   outline: none;
 }
 .api-key-input-wrap input:focus { border-color: var(--pink-400); }
+
+/* Provider picker (Gemini / Groq / OpenAI) — matches the key input style */
+.provider-select {
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 2px solid var(--lavender-200);
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--white);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  outline: none;
+  cursor: pointer;
+}
+.provider-select:focus { border-color: var(--pink-400); }
+
 .toggle-eye {
   position: absolute;
   right: 12px; top: 50%;
@@ -1065,6 +1083,21 @@ a { text-decoration: none; }
 .perm-status.granted { background:#E8F5EE;color:#3A9A60; }
 .perm-status.denied { background:#FDE8EC;color:#D04060; }
 .perm-status.unknown { background:var(--lavender-100);color:var(--lavender-400); }
+.perm-actions {
+  display:flex;align-items:center;gap:8px;
+}
+.perm-action {
+  font-size:12px;font-weight:700;
+  color:var(--pink-500);
+  background:var(--lavender-100);
+  border:none;
+  padding:5px 12px;
+  border-radius:var(--radius-full);
+  cursor:pointer;
+  transition:background 0.2s,color 0.2s;
+}
+.perm-action:hover { background:var(--pink-500);color:var(--white); }
+.perm-action:active { transform:scale(0.96); }
 
 /* ═══════════════════════════════════════════════
    TOAST

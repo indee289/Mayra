@@ -145,17 +145,70 @@ const AndroidBridge = (() => {
         return true;
       } catch { return false; }
     }
-    /* Contacts not accessible on web */
+    if (permName === 'location') {
+      /* Prompt the browser for a real geolocation fix */
+      if (navigator.geolocation) {
+        return new Promise(resolve => {
+          navigator.geolocation.getCurrentPosition(
+            () => resolve(true),
+            () => resolve(false),
+            { timeout: 10000 }
+          );
+        });
+      }
+      return false;
+    }
+    /* Contacts + accessibility not accessible on web */
     return false;
   }
 
   async function checkPermission(permName) {
-    try {
-      const status = await navigator.permissions.query({
-        name: permName === 'microphone' ? 'microphone' : 'camera' /* no contacts perm in web */
-      });
-      return status.state; // 'granted' | 'denied' | 'prompt'
-    } catch { return 'unknown'; }
+    /* Native pass-through first */
+    const bridge = _native();
+    if (bridge) {
+      try {
+        const result = await bridge.checkPermission({ permission: permName });
+        return result.status; // 'granted' | 'denied' | 'prompt'
+      } catch {}
+    }
+
+    /* Web fallbacks via the Permissions API */
+    if (permName === 'microphone') {
+      try {
+        const status = await navigator.permissions.query({ name: 'microphone' });
+        return status.state; // 'granted' | 'denied' | 'prompt'
+      } catch { return 'unknown'; }
+    }
+    if (permName === 'location') {
+      try {
+        const status = await navigator.permissions.query({ name: 'geolocation' });
+        return status.state; // 'granted' | 'denied' | 'prompt'
+      } catch { return 'unknown'; }
+    }
+    /* Contacts + accessibility have no web equivalent */
+    return 'unknown';
+  }
+
+  /* ── openAccessibilitySettings ────────────────────────── */
+  async function openAccessibilitySettings() {
+    const bridge = _native();
+    if (bridge) {
+      try { await bridge.openAccessibilitySettings(); return { success: true }; } catch {}
+    }
+    App.showToast('Accessibility toh device ki Settings mein jaake khud se on karna padega, meri jaan.');
+    return { success: false, reason: 'unavailable_on_web' };
+  }
+
+  /* ── isAccessibilityEnabled ───────────────────────────── */
+  async function isAccessibilityEnabled() {
+    const bridge = _native();
+    if (bridge) {
+      try {
+        const result = await bridge.isAccessibilityEnabled();
+        return !!result.enabled;
+      } catch {}
+    }
+    return false;
   }
 
   function openSystemSettings() {
@@ -191,6 +244,8 @@ const AndroidBridge = (() => {
     callContact,
     requestPermission,
     checkPermission,
+    openAccessibilitySettings,
+    isAccessibilityEnabled,
     openSystemSettings,
   };
 })();

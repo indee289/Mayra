@@ -1,8 +1,20 @@
 /* ═══════════════════════════════════════════════════════════
-   GEMINI CHAT — Text message pipeline
-   Uses Gemini generateContent REST API.
+   CHAT ROUTER (module name kept as GeminiChat for compatibility)
+   Routes the text message pipeline by the selected provider:
+     - 'gemini' : Gemini generateContent REST API, WITH function
+                  calling + follow-up turn (full-featured).
+     - 'groq'   : Groq OpenAI-compatible chat/completions.
+     - 'openai' : OpenAI chat/completions.
    Shares session history context with voice where possible.
-   Handles function calling inline.
+
+   LIMITATION: Function-calling / device actions (openApp, callContact,
+   etc.) are Gemini-ONLY. Groq and OpenAI return text-only replies —
+   they do NOT execute tool calls. Voice is also Gemini-only (gated in
+   app.js _startVoice). MAYRA_SYSTEM_PROMPT is reused as the system
+   message for ALL providers so Mayra's personality never forks.
+
+   The public send(userText, apiKey, systemInstruction) signature is
+   preserved so app.js and voice callers are unaffected.
 ═══════════════════════════════════════════════════════════ */
 const GeminiChat = (() => {
 
@@ -10,8 +22,31 @@ const GeminiChat = (() => {
   const MODEL     = 'gemini-2.0-flash';
   const MAX_RETRIES = 2;
 
-  /* ── Send a message ── */
+  /* OpenAI-compatible provider config (Groq + OpenAI share the shape) */
+  const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
+  const GROQ_MODEL  = 'llama-3.3-70b-versatile';
+  const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
+  const OPENAI_MODEL = 'gpt-4o-mini';
+
+  /* ── Send a message — routes by selected provider ── */
   async function send(userText, apiKey, systemInstruction) {
+    const provider = (typeof Storage !== 'undefined' && Storage.getProvider)
+      ? Storage.getProvider()
+      : 'gemini';
+
+    if (provider === 'groq') {
+      return _sendOpenAICompatible('groq', GROQ_URL, GROQ_MODEL, userText, apiKey, systemInstruction);
+    }
+    if (provider === 'openai') {
+      return _sendOpenAICompatible('openai', OPENAI_URL, OPENAI_MODEL, userText, apiKey, systemInstruction);
+    }
+    /* Default: Gemini (full function-calling pipeline). */
+    return _sendGemini(userText, apiKey, systemInstruction);
+  }
+
+  /* ── Gemini text pipeline (UNCHANGED behaviour — function calling
+        + follow-up turn preserved) ── */
+  async function _sendGemini(userText, apiKey, systemInstruction) {
     const history = _buildHistory(userText);
     let attempt = 0;
 
@@ -60,6 +95,79 @@ const GeminiChat = (() => {
         await _sleep(1000 * attempt);
       }
     }
+  }
+
+  /* ── Groq / OpenAI text-only pipeline (OpenAI chat/completions shape) ──
+     NOTE: These providers are text-only in Mayra — no function/tool
+     execution (device actions stay Gemini-only). We still reuse
+     MAYRA_SYSTEM_PROMPT as the system message and persist history so
+     context carries across providers and the chat counter keeps working. */
+  async function _sendOpenAICompatible(provider, url, model, userText, apiKey, systemInstruction) {
+    const messages = _buildOpenAIMessages(userText, systemInstruction);
+    let attempt = 0;
+
+    while (attempt <= MAX_RETRIES) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.85
+          })
+        });
+
+        if (!res.ok) {
+          /* Mirror Gemini's warm error handling — never surface raw JSON. */
+          if (res.status === 401 || res.status === 403) {
+            return { ok: false, error: 'invalid_key', message: 'API key sahi nahi laga. Settings mein check karo.' };
+          }
+          if (res.status === 429) {
+            return { ok: false, error: 'quota', message: 'Abhi thoda busy hoon, thodi der mein phir koshish karo!' };
+          }
+          const err = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status}: ${err}`);
+        }
+
+        const data = await res.json();
+        const replyText = (data.choices?.[0]?.message?.content || '').trim();
+        if (!replyText) {
+          return { ok: false, error: 'empty', message: 'Kuch samajh nahi aaya, phir bolo?' };
+        }
+
+        /* Persist the turn just like the Gemini text path. */
+        Storage.appendMessage('user', userText);
+        Storage.appendMessage('model', replyText);
+        return { ok: true, text: replyText };
+
+      } catch (e) {
+        attempt++;
+        if (attempt > MAX_RETRIES) {
+          console.error(`[Chat:${provider}] Failed after retries:`, e);
+          return { ok: false, error: 'network', message: 'Network mein dikkat aayi. Thodi der baad try karo.' };
+        }
+        await _sleep(1000 * attempt);
+      }
+    }
+  }
+
+  /* Build OpenAI-style messages: system prompt first, then recent history
+     with stored 'model' role mapped to 'assistant', then the new user turn. */
+  function _buildOpenAIMessages(newUserText, systemInstruction) {
+    const messages = [{ role: 'system', content: systemInstruction }];
+    const history = Storage.getChatHistory().slice(-20);
+    for (const msg of history) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      });
+    }
+    messages.push({ role: 'user', content: newUserText });
+    return messages;
   }
 
   async function _processResponse(data, originalUserText, apiKey, systemInstruction) {

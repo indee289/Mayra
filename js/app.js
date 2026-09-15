@@ -50,7 +50,7 @@ const App = (() => {
   let _toastTimer    = null;
   let _lastMayraMsg  = '';
 
-  const ONBOARD_SLIDES = ['welcome', 'apikey', 'mic', 'contacts', 'done'];
+  const ONBOARD_SLIDES = ['welcome', 'apikey', 'mic', 'contacts', 'location', 'accessibility', 'done'];
   let _onboardIdx = 0;
 
   /* ════════════════════════════════════════════════════
@@ -216,10 +216,44 @@ const App = (() => {
     }
   }
 
+  /* Provider picker change handler (context: 'settings' | 'onboard').
+     Persists the chosen provider and refreshes placeholder/hint + the
+     settings key-status line to reflect that provider's saved-key state. */
+  function onProviderChange(context) {
+    const selId = context === 'onboard' ? 'onboard-provider' : 'settings-provider';
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+
+    const provider = sel.value;
+    Storage.setProvider(provider);
+
+    const label = _providerLabel(provider);
+
+    if (context === 'onboard') {
+      const input = document.getElementById('onboard-api-key');
+      if (input) input.placeholder = `Apna ${label} API key yahan daalo...`;
+      const errEl = document.getElementById('onboard-api-error');
+      if (errEl) { errEl.textContent = ''; errEl.className = 'error-msg hidden'; }
+    } else {
+      const input = document.getElementById('settings-api-key');
+      if (input) { input.value = ''; input.placeholder = _keyPlaceholder(provider); }
+      const statusEl = document.getElementById('settings-api-status');
+      if (statusEl) {
+        if (Storage.hasApiKey(provider)) {
+          statusEl.textContent = `✅ ${label} key set hai`;
+          statusEl.className = 'api-status-msg success';
+        } else {
+          statusEl.textContent = `${label} ka key daalo phir Save karo`;
+          statusEl.className = 'api-status-msg';
+        }
+      }
+    }
+  }
+
   /* Provider-aware key validator.
      Returns one of: 'valid' | 'auth_error' | 'network_error'.
      A thrown fetch / transport failure is ALWAYS 'network_error' — never
-     'invalid'. FEAT-002 will add groq/openai (Bearer-auth) branches. */
+     'invalid'. Supports gemini (key query param) + groq/openai (Bearer). */
   async function _testApiKey(key, provider) {
     const prov = provider || Storage.getProvider();
 
@@ -243,8 +277,36 @@ const App = (() => {
       }
     }
 
+    if (prov === 'groq') {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/models', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${key}` }
+        });
+        if (res.ok) return 'valid';
+        if (res.status === 401 || res.status === 403) return 'auth_error';
+        return 'network_error';
+      } catch {
+        return 'network_error';
+      }
+    }
+
+    if (prov === 'openai') {
+      try {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${key}` }
+        });
+        if (res.ok) return 'valid';
+        if (res.status === 401 || res.status === 403) return 'auth_error';
+        return 'network_error';
+      } catch {
+        return 'network_error';
+      }
+    }
+
     /* Unknown/other providers: don't hard-reject; let it save and verify
-       later. FEAT-002 will implement real groq/openai validation. */
+       later. */
     return 'network_error';
   }
 
@@ -264,6 +326,36 @@ const App = (() => {
     Storage.setPermission('contacts', granted ? 'granted' : 'denied');
     showToast(granted ? '📞 Contacts allow ho gaya!' : 'Contacts baad mein Settings mein allow kar sakte ho.');
     onboardNext();
+  }
+
+  async function requestLocationPermission() {
+    const granted = await AndroidBridge.requestPermission('location');
+    Storage.setPermission('location', granted ? 'granted' : 'denied');
+    showToast(granted ? '📍 Location allow ho gaya!' : 'Location baad mein Settings mein allow kar sakte ho.');
+    onboardNext();
+  }
+
+  /* Per-item Allow button in Settings.
+     `name` is a JS bridge name: 'microphone' | 'contacts' | 'location'.
+     Storage uses 'mic' for the microphone slot, so map that one. */
+  async function requestPermissionFromSettings(name) {
+    const granted = await AndroidBridge.requestPermission(name);
+    const storageKey = name === 'microphone' ? 'mic' : name;
+    Storage.setPermission(storageKey, granted ? 'granted' : 'denied');
+    const labels = { microphone: 'Microphone', contacts: 'Contacts', location: 'Location' };
+    const label = labels[name] || 'Permission';
+    showToast(granted
+      ? `✅ ${label} allow ho gaya!`
+      : `${label} nahi mila — device Settings mein manually allow karo, meri jaan.`);
+    _updatePermissionStatus();
+  }
+
+  /* Accessibility can't be toggled programmatically — deep-link the user to
+     the system Accessibility list and warmly guide them. */
+  async function openAccessibilitySettings() {
+    await AndroidBridge.openAccessibilitySettings();
+    showToast('Accessibility list mein Mayra ko on kar do, phir main aur bhi help kar paungi ❤️');
+    _updatePermissionStatus();
   }
 
   function finishOnboarding() {
@@ -361,6 +453,14 @@ const App = (() => {
   }
 
   async function _startVoice() {
+    /* Voice (Gemini Live WebSocket) is Gemini-only. If the user has
+       chosen Groq/OpenAI, don't open the socket — keep text chat working
+       and warmly explain in Mayra's voice. */
+    if (Storage.getProvider() !== 'gemini') {
+      showToast('Awaaz wali baat abhi sirf Gemini key se hoti hai — Gemini chuno toh main bol paungi ❤️');
+      return;
+    }
+
     const apiKey = Storage.getApiKey();
     if (!apiKey) {
       showToast('❤️ Pehle Settings mein Gemini API key daalo.');
@@ -550,13 +650,38 @@ const App = (() => {
   /* ════════════════════════════════════════════════════
      SETTINGS
   ════════════════════════════════════════════════════ */
+  /* Human-friendly provider labels for warm Hinglish copy. */
+  const PROVIDER_LABELS = { gemini: 'Gemini', groq: 'Groq', openai: 'ChatGPT (OpenAI)' };
+  function _providerLabel(p) { return PROVIDER_LABELS[p] || 'Gemini'; }
+
+  function _keyPlaceholder(provider) {
+    const label = _providerLabel(provider);
+    return Storage.hasApiKey(provider)
+      ? '••••••••••••••••••••• (set hai)'
+      : `Apna ${label} API key daalo...`;
+  }
+
   function _prefillSettings() {
+    const provider = Storage.getProvider();
+
+    const providerSel = document.getElementById('settings-provider');
+    if (providerSel) providerSel.value = provider;
+
     const keyInput = document.getElementById('settings-api-key');
     if (keyInput) {
       keyInput.value = '';
-      keyInput.placeholder = Storage.hasApiKey()
-        ? '••••••••••••••••••••• (set hai)'
-        : 'Apna Gemini API key daalo...';
+      keyInput.placeholder = _keyPlaceholder(provider);
+    }
+
+    const statusEl = document.getElementById('settings-api-status');
+    if (statusEl) {
+      if (Storage.hasApiKey(provider)) {
+        statusEl.textContent = `✅ ${_providerLabel(provider)} key set hai`;
+        statusEl.className = 'api-status-msg success';
+      } else {
+        statusEl.textContent = '';
+        statusEl.className = 'api-status-msg';
+      }
     }
 
     const userInput = document.getElementById('settings-username');
@@ -606,6 +731,8 @@ const App = (() => {
   async function _updatePermissionStatus() {
     const micEl      = document.getElementById('perm-mic');
     const contactsEl = document.getElementById('perm-contacts');
+    const locationEl = document.getElementById('perm-location');
+    const accessEl   = document.getElementById('perm-accessibility');
 
     if (micEl) {
       const micState = await AndroidBridge.checkPermission('microphone');
@@ -613,9 +740,23 @@ const App = (() => {
       micEl.className   = `perm-status ${_permClass(micState)}`;
     }
     if (contactsEl) {
-      const stored = Storage.getPermission('contacts');
-      contactsEl.textContent = _permLabel(stored);
-      contactsEl.className   = `perm-status ${_permClass(stored)}`;
+      /* Prefer live native state; fall back to what we persisted. */
+      let state = await AndroidBridge.checkPermission('contacts');
+      if (state === 'unknown') state = Storage.getPermission('contacts');
+      contactsEl.textContent = _permLabel(state);
+      contactsEl.className   = `perm-status ${_permClass(state)}`;
+    }
+    if (locationEl) {
+      let state = await AndroidBridge.checkPermission('location');
+      if (state === 'unknown') state = Storage.getPermission('location');
+      locationEl.textContent = _permLabel(state);
+      locationEl.className   = `perm-status ${_permClass(state)}`;
+    }
+    if (accessEl) {
+      const enabled = await AndroidBridge.isAccessibilityEnabled();
+      const state = enabled ? 'granted' : Storage.getPermission('accessibility');
+      accessEl.textContent = _permLabel(state);
+      accessEl.className   = `perm-status ${_permClass(state)}`;
     }
   }
 
@@ -714,8 +855,9 @@ const App = (() => {
     /* Screen */
     showScreen, hideScreen,
     /* Onboarding */
-    onboardNext, validateAndSaveApiKey, skipApiKey,
-    requestMicPermission, requestContactsPermission, finishOnboarding,
+    onboardNext, validateAndSaveApiKey, onProviderChange, skipApiKey,
+    requestMicPermission, requestContactsPermission, requestLocationPermission,
+    requestPermissionFromSettings, openAccessibilitySettings, finishOnboarding,
     /* Nav */
     switchTab, setMode, goBackHome,
     /* Voice */
