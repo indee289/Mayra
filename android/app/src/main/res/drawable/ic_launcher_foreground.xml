@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Centered white heart (companion icon) within the adaptive safe zone. -->
+    <group android:scaleX="1.5" android:scaleY="1.5" android:pivotX="54" android:pivotY="54">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M54,66.5c-0.6,0 -1.2,-0.2 -1.7,-0.6c-1.9,-1.5 -3.8,-2.9 -5.4,-4.1l0,0c-4.9,-3.6 -9.1,-6.7 -12,-9.8c-3.3,-3.5 -4.8,-6.8 -4.8,-10.5c0,-3.6 1.2,-6.9 3.5,-9.3c2.3,-2.5 5.5,-3.8 8.9,-3.8c2.6,0 5,0.8 7,2.4c1,0.8 2,1.8 2.8,3c0.8,-1.2 1.7,-2.2 2.8,-3c2,-1.6 4.4,-2.4 7,-2.4c3.5,0 6.6,1.4 8.9,3.8c2.3,2.5 3.5,5.7 3.5,9.3c0,3.7 -1.5,7 -4.8,10.5c-2.9,3.1 -7.1,6.2 -12,9.8c-1.7,1.2 -3.5,2.6 -5.4,4.1C55.2,66.3 54.6,66.5 54,66.5z" />
+    </group>
+</vector>

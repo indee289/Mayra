@@ -1,0 +1,11 @@
+{
+  "appId": "com.priyakidost.mayra",
+  "appName": "Priya ki Dost",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

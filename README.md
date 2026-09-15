@@ -59,22 +59,57 @@ Mayra/
 │   ├── gemini-voice.js     ← Gemini Live WebSocket voice pipeline
 │   ├── gemini-chat.js      ← Gemini REST text chat pipeline
 │   └── app.js              ← Main controller (screens, nav, BYOK, UI)
-└── android/
-    ├── AndroidManifest.xml ← All permissions + <queries> for Android 11+
-    └── MayraAndroidPlugin.kt ← Capacitor plugin (openApp, makeCall, callContact…)
+├── assets/
+│   ├── icons/              ← PWA icons (icon-192.png, icon-512.png)
+│   └── iconsax/            ← Vendored Iconsax SVG sprite (offline icon pack)
+├── scripts/
+│   ├── copy-web.js         ← Copies web assets into Capacitor webDir (www)
+│   └── gen-icons.js        ← Generates PWA + Android launcher PNG icons
+├── capacitor.config.json   ← Capacitor config (appId, appName, webDir=www)
+├── package.json            ← Capacitor deps (@capacitor/core, cli, android)
+├── .github/workflows/
+│   └── build-apk.yml       ← CI: build + sign + release APK in one run
+└── android/                ← Full Capacitor Android project (gradle, res, kt)
+    └── app/src/main/java/com/priyakidost/mayra/
+        ├── MainActivity.kt      ← Registers the MayraAndroid plugin
+        └── MayraAndroidPlugin.kt ← Capacitor plugin (openApp, makeCall…)
 ```
 
 ---
 
 ## Android APK Build (Capacitor)
 
-1. `npm install @capacitor/core @capacitor/android @capacitor/cli`
-2. `npx cap init "Priya ki Dost" com.priyakidost.mayra`
-3. `npx cap add android`
-4. Copy `android/MayraAndroidPlugin.kt` to `android/app/src/main/java/com/priyakidost/mayra/`
-5. Register plugin in `MainActivity.kt`: `add(MayraAndroidPlugin::class.java)`
-6. Merge `android/AndroidManifest.xml` permissions into your app's manifest
-7. `npx cap sync && npx cap open android`
+The repo ships a **complete Capacitor Android project** under `android/` and an
+automated GitHub Actions pipeline — no manual scaffolding needed.
+
+### Automatic build (recommended)
+
+Every push to `main` (and every manual run / `v*` tag) triggers
+`.github/workflows/build-apk.yml`, which:
+
+1. Installs Node deps, Java 17 (Temurin) and the Android SDK
+2. Copies the web app into `www/` and runs `npx cap sync android`
+3. Generates a build-time release keystore and signs the APK
+4. Runs `./gradlew assembleRelease`
+5. Publishes a **GitHub Release** (tag `v2.0.<run_number>`) with the signed
+   `.apk` attached as a downloadable asset
+
+Just push to `main` — the installable APK appears under **Releases** in one run.
+
+### Local build
+
+```bash
+npm install
+npm run copy:web        # copies index.html/css/js/assets into www/
+npx cap sync android
+cd android && ./gradlew assembleRelease
+```
+
+Icons (PWA + Android launcher) can be regenerated with `node scripts/gen-icons.js`.
+
+The custom native bridge lives at
+`android/app/src/main/java/com/priyakidost/mayra/MayraAndroidPlugin.kt` and is
+registered in `MainActivity.kt` via `registerPlugin(MayraAndroidPlugin::class.java)`.
 
 ---
 

@@ -3,8 +3,7 @@
  * MayraAndroidPlugin.kt — Capacitor plugin
  * Exposes native device capabilities to the WebView JS layer.
  *
- * Usage: Add to your Capacitor Android project and register
- * in MainActivity.kt:  add(MayraAndroidPlugin::class.java)
+ * Registered in MainActivity.kt:  registerPlugin(MayraAndroidPlugin::class.java)
  *
  * The JS side accesses this via:
  *   window.Capacitor.Plugins.MayraAndroid.<method>(args)
@@ -137,8 +136,7 @@ class MayraAndroidPlugin : Plugin() {
     @PluginMethod
     fun requestPermission(call: PluginCall) {
         val perm = call.getString("permission") ?: run { call.reject("permission required"); return }
-        // Capacitor handles runtime permissions natively via @NativePermission annotations
-        // For a full implementation, use Capacitor's permission API surface.
+        // Capacitor handles runtime permissions natively via @NativePermission annotations.
         // This stub returns false so the JS layer falls through to its own handling.
         call.resolve(JSObject().put("granted", false))
     }

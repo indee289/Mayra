@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Generated web output (created by scripts/copy-web.js during build)
+www/
+
+# OS / editor
+.DS_Store
+*.log
+
+# Local build artifacts
+*.apk
+*.keystore
+!android/**/gradle-wrapper.jar

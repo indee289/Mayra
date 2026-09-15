@@ -404,6 +404,24 @@ a { text-decoration: none; }
   transition: transform 0.15s;
 }
 .header-btn:active { transform: scale(0.92); }
+.header-btn .isax { width: 20px; height: 20px; color: var(--pink-500); }
+
+/* ─── Iconsax icon helper ─── */
+.isax {
+  width: 22px; height: 22px;
+  display: inline-block;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+.chip-icon .isax { width: 24px; height: 24px; color: var(--pink-500); }
+.cs-icon .isax { width: 56px; height: 56px; color: var(--pink-400); }
+.onboard-icon .isax { width: 52px; height: 52px; color: var(--pink-500); }
+.settings-section-title .isax { width: 18px; height: 18px; color: var(--pink-500); vertical-align: -3px; }
+.permission-item .isax { width: 18px; height: 18px; color: var(--pink-500); vertical-align: -3px; }
+.profile-edit-btn .isax { width: 16px; height: 16px; color: var(--white); }
+.btn-outline .isax { width: 18px; height: 18px; vertical-align: -3px; }
 
 /* ─── Tab Views ─── */
 .tab-views {
