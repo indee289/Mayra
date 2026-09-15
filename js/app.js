@@ -173,11 +173,7 @@ const App = (() => {
       return;
     }
 
-    /* Validate format: Gemini keys start with "AIza" */
-    if (!key.startsWith('AIza') || key.length < 30) {
-      _showFieldError(errEl, 'Yeh key sahi nahi lag rahi — Google AI Studio se copy karo.');
-      return;
-    }
+    const provider = Storage.getProvider();
 
     /* Live validation ping */
     if (errEl) {
@@ -185,38 +181,71 @@ const App = (() => {
       errEl.className = 'api-status-msg';
     }
 
-    const valid = await _testApiKey(key);
-    if (!valid) {
-      _showFieldError(errEl, 'Key invalid lagi — dobara try karo.');
+    /* Three-state validation: 'valid' | 'auth_error' | 'network_error'.
+       A network/transport failure must NEVER be treated as an invalid key. */
+    const result = await _testApiKey(key, provider);
+
+    if (result === 'auth_error') {
+      _showFieldError(errEl, 'Yeh key kaam nahi kar rahi — Google AI Studio se dobara copy karke daalo. 🙏');
       return;
     }
 
-    Storage.setApiKey(key);
+    /* Both 'valid' and 'network_error' save the key. On a network error we
+       can't confirm right now, so we trust it and re-check while chatting. */
+    Storage.setApiKey(key, provider);
     input.value = '';
 
-    if (errEl) {
-      errEl.textContent = '✅ Save ho gaya!';
-      errEl.className = 'api-status-msg success';
+    if (result === 'network_error') {
+      if (errEl) {
+        errEl.textContent = '⚠️ Network issue — key save kar li, baat karte waqt check ho jayegi';
+        errEl.className = 'api-status-msg';
+      }
+      showToast('Network issue — key save kar li, baat karte waqt check ho jayegi ❤️');
+    } else {
+      if (errEl) {
+        errEl.textContent = '✅ Save ho gaya!';
+        errEl.className = 'api-status-msg success';
+      }
+      showToast('API key save ho gaya! Ab baat karte hain ❤️');
     }
-    showToast('API key save ho gaya! Ab baat karte hain ❤️');
 
+    /* Progress the onboarding flow on success AND on network error —
+       the key is saved either way. */
     if (context === 'onboard') {
       setTimeout(() => onboardNext(), 800);
     }
   }
 
-  async function _testApiKey(key) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'hi' }] }] })
-        }
-      );
-      return res.ok || res.status === 400; /* 400 = valid key, bad request structure */
-    } catch { return false; }
+  /* Provider-aware key validator.
+     Returns one of: 'valid' | 'auth_error' | 'network_error'.
+     A thrown fetch / transport failure is ALWAYS 'network_error' — never
+     'invalid'. FEAT-002 will add groq/openai (Bearer-auth) branches. */
+  async function _testApiKey(key, provider) {
+    const prov = provider || Storage.getProvider();
+
+    if (prov === 'gemini') {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'hi' }] }] })
+          }
+        );
+        /* 200 OK or 400 (reachable, key format acceptable) => valid.
+           401/403 => genuine auth error. Anything else => treat as network. */
+        if (res.ok || res.status === 400) return 'valid';
+        if (res.status === 401 || res.status === 403) return 'auth_error';
+        return 'network_error';
+      } catch {
+        return 'network_error';
+      }
+    }
+
+    /* Unknown/other providers: don't hard-reject; let it save and verify
+       later. FEAT-002 will implement real groq/openai validation. */
+    return 'network_error';
   }
 
   function skipApiKey() {

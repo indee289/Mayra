@@ -4,15 +4,34 @@
 ═══════════════════════════════════════════════════════════ */
 const Storage = (() => {
   const KEYS = {
-    API_KEY:        'mayra_api_key',
+    API_KEY:        'mayra_api_key',      /* legacy single-key slot — kept for backward compat */
+    PROVIDER:       'mayra_provider',     /* selected provider id: 'gemini' | 'groq' | 'openai' */
     USERNAME:       'mayra_username',
     ONBOARDED:      'mayra_onboarded',
     DARK_MODE:      'mayra_dark_mode',
     CHAT_HISTORY:   'mayra_chat_history',
     CHAT_COUNT:     'mayra_chat_count',
     INSTALL_DATE:   'mayra_install_date',
-    PERM_MIC:       'mayra_perm_mic',
-    PERM_CONTACTS:  'mayra_perm_contacts',
+    PERM_MIC:            'mayra_perm_mic',
+    PERM_CONTACTS:       'mayra_perm_contacts',
+    PERM_LOCATION:       'mayra_perm_location',
+    PERM_ACCESSIBILITY:  'mayra_perm_accessibility',
+  };
+
+  /* Supported providers and their per-provider key slots. */
+  const PROVIDERS = ['gemini', 'groq', 'openai'];
+  const DEFAULT_PROVIDER = 'gemini';
+  function _providerKeyName(provider) {
+    const p = PROVIDERS.includes(provider) ? provider : DEFAULT_PROVIDER;
+    return `mayra_key_${p}`;
+  }
+
+  /* Permission name -> storage key map (generalized, no hardcoded ternary). */
+  const PERM_KEYS = {
+    mic:           KEYS.PERM_MIC,
+    contacts:      KEYS.PERM_CONTACTS,
+    location:      KEYS.PERM_LOCATION,
+    accessibility: KEYS.PERM_ACCESSIBILITY,
   };
 
   /* ── Simple XOR obfuscation — not true encryption but prevents
@@ -34,20 +53,51 @@ const Storage = (() => {
     } catch { return null; }
   }
 
-  function setApiKey(key) {
-    if (!key) { localStorage.removeItem(KEYS.API_KEY); return; }
-    localStorage.setItem(KEYS.API_KEY, _obfuscate(key.trim()));
+  /* ── Provider selection ── */
+  function getProvider() {
+    const p = localStorage.getItem(KEYS.PROVIDER);
+    return PROVIDERS.includes(p) ? p : DEFAULT_PROVIDER;
   }
-  function getApiKey() {
-    const raw = localStorage.getItem(KEYS.API_KEY);
-    if (!raw) return null;
-    return _deobfuscate(raw);
+  function setProvider(provider) {
+    const p = PROVIDERS.includes(provider) ? provider : DEFAULT_PROVIDER;
+    localStorage.setItem(KEYS.PROVIDER, p);
   }
-  function clearApiKey() {
-    localStorage.removeItem(KEYS.API_KEY);
+
+  /* ── Provider-aware API key storage ──
+        Callers may pass a provider explicitly; when omitted we operate on
+        the currently-selected provider. XOR obfuscation is preserved for
+        every stored key. */
+  function setApiKey(key, provider) {
+    const slot = _providerKeyName(provider || getProvider());
+    if (!key) { localStorage.removeItem(slot); return; }
+    localStorage.setItem(slot, _obfuscate(key.trim()));
   }
-  function hasApiKey() {
-    return !!getApiKey();
+  function getApiKey(provider) {
+    const active = provider || getProvider();
+    const slot = _providerKeyName(active);
+    const raw = localStorage.getItem(slot);
+    if (raw) return _deobfuscate(raw);
+
+    /* BACKWARD COMPAT: users who saved a key before multi-provider support
+       stored it under the legacy single-key slot. Treat it as the gemini /
+       active provider key so they aren't logged out. */
+    if (active === DEFAULT_PROVIDER) {
+      const legacy = localStorage.getItem(KEYS.API_KEY);
+      if (legacy) return _deobfuscate(legacy);
+    }
+    return null;
+  }
+  function clearApiKey(provider) {
+    const active = provider || getProvider();
+    localStorage.removeItem(_providerKeyName(active));
+    /* Also clear the legacy slot for the default provider so a cleared key
+       does not silently resurface from backward-compat fallback. */
+    if (active === DEFAULT_PROVIDER) {
+      localStorage.removeItem(KEYS.API_KEY);
+    }
+  }
+  function hasApiKey(provider) {
+    return !!getApiKey(provider);
   }
 
   function setUsername(name) { localStorage.setItem(KEYS.USERNAME, name || 'Priya'); }
@@ -60,11 +110,11 @@ const Storage = (() => {
   function getDarkMode()     { return localStorage.getItem(KEYS.DARK_MODE) === '1'; }
 
   function setPermission(name, status) {
-    const k = name === 'mic' ? KEYS.PERM_MIC : KEYS.PERM_CONTACTS;
+    const k = PERM_KEYS[name] || `mayra_perm_${name}`;
     localStorage.setItem(k, status);
   }
   function getPermission(name) {
-    const k = name === 'mic' ? KEYS.PERM_MIC : KEYS.PERM_CONTACTS;
+    const k = PERM_KEYS[name] || `mayra_perm_${name}`;
     return localStorage.getItem(k) || 'unknown';
   }
 
@@ -97,6 +147,7 @@ const Storage = (() => {
   }
 
   return {
+    getProvider, setProvider,
     setApiKey, getApiKey, clearApiKey, hasApiKey,
     setUsername, getUsername,
     setOnboarded, isOnboarded,
