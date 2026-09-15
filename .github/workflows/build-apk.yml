@@ -1,0 +1,116 @@
+name: Build Android APK
+
+# Har push par main branch me, manual trigger par, aur tag par APK build hoga.
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+# Release banane ke liye contents: write chahiye.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Source code checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Node.js (Capacitor CLI ke liye)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Java 17 (Temurin) — Capacitor 6 + AGP 8.2 ke liye safe target
+      - name: Setup Java (Temurin JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 4. Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 5. Gradle (wrapper jar ke bina bhi kaam kare, cache ke saath)
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # 6. NPM dependencies install (Capacitor core/cli/android/assets)
+      - name: Install npm dependencies
+        run: npm install
+
+      # 7. Web assets ko webDir (www) me copy karo
+      - name: Copy web assets into webDir
+        run: npm run copy:web
+
+      # 8. Capacitor sync — web assets + native config ko android project me daalta hai
+      - name: Capacitor sync (android)
+        run: npx cap sync android
+
+      # 9. Gradle wrapper ensure karo (agar jar missing ho to generate ho jaye)
+      - name: Ensure Gradle wrapper
+        working-directory: android
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "gradle-wrapper.jar missing — generating..."
+            gradle wrapper --gradle-version 8.2.1
+          fi
+          chmod +x ./gradlew
+
+      # 10. Build-time release keystore generate karo (koi real secret commit nahi)
+      - name: Generate release keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/mayra-release.keystore" \
+            -alias mayra \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass mayra_release_2024 \
+            -keypass mayra_release_2024 \
+            -dname "CN=Priya ki Dost, OU=Mayra, O=PriyaKiDost, L=India, ST=IN, C=IN"
+
+      # 11. Signed RELEASE APK build karo
+      - name: Build signed release APK
+        working-directory: android
+        env:
+          MAYRA_KEYSTORE_FILE: ${{ runner.temp }}/mayra-release.keystore
+          MAYRA_KEYSTORE_PASSWORD: mayra_release_2024
+          MAYRA_KEY_ALIAS: mayra
+          MAYRA_KEY_PASSWORD: mayra_release_2024
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      # 12. Built APK dhoondho aur rename karo
+      - name: Locate APK
+        id: apk
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n1)
+          echo "Found APK: $APK"
+          cp "$APK" "priya-ki-dost-v2.0.${{ github.run_number }}.apk"
+          echo "path=priya-ki-dost-v2.0.${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
+
+      # 13. Build artifact ke roop me upload (har run me available)
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: priya-ki-dost-apk
+          path: ${{ steps.apk.outputs.path }}
+
+      # 14. GitHub Release banao aur APK attach karo
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.0.${{ github.run_number }}
+          name: Priya ki Dost v2.0.${{ github.run_number }}
+          body: |
+            Priya ki Dost — Mayra, tumhari AI saheli.
+            Automatic build. APK niche se download karo aur install karo.
+          files: ${{ steps.apk.outputs.path }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
