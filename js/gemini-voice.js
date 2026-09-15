@@ -47,6 +47,24 @@ const GeminiVoice = (() => {
     if (event === 'error'    && _onErrorCb)        _onErrorCb(data);
   }
 
+  /* Push a VOICE lifecycle entry to the on-screen debug panel.
+     DIAGNOSTICS ONLY — guarded so a missing MayraDebug never breaks voice,
+     and the key in the logged URL is redacted inside MayraDebug.log. */
+  function _debugVoice(state, extra) {
+    try {
+      if (window.MayraDebug && window.MayraDebug.log) {
+        const wsUrl = `wss://${WS_HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${_apiKey || ''}`;
+        window.MayraDebug.log(Object.assign({
+          tag: 'VOICE',
+          path: 'ws',
+          url: wsUrl,
+          state: state,
+          ok: state === 'open',
+        }, extra || {}));
+      }
+    } catch (_) { /* logging must never break voice */ }
+  }
+
   /* ── Session Setup ── */
   async function start(apiKey, systemInstruction) {
     if (_sessionActive) return;
@@ -56,10 +74,15 @@ const GeminiVoice = (() => {
 
     const wsUrl = `wss://${WS_HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${_apiKey}`;
 
+    _debugVoice('connecting', { rawText: 'Opening WebSocket to Gemini Live...' });
+
     _ws = new WebSocket(wsUrl);
     _ws.binaryType = 'arraybuffer';
 
+    _debugVoice('connecting', { rawText: `WebSocket created, readyState=${_ws.readyState}` });
+
     _ws.onopen = () => {
+      _debugVoice('open', { rawText: `WebSocket open, readyState=${_ws && _ws.readyState}` });
       /* Send session setup */
       _ws.send(JSON.stringify({
         setup: {
@@ -83,12 +106,29 @@ const GeminiVoice = (() => {
     _ws.onmessage = _handleMessage;
 
     _ws.onerror = (e) => {
+      /* WebSocket error events are famously information-poor — capture
+         whatever the event exposes plus the current readyState so the
+         on-screen panel still shows something actionable. */
+      let raw = 'WebSocket error event';
+      try {
+        const rs = _ws ? _ws.readyState : 'n/a';
+        const type = (e && e.type) || 'error';
+        const msg = (e && (e.message || e.error)) ? (e.message || String(e.error)) : '';
+        raw = `type=${type}, readyState=${rs}` + (msg ? `, message=${msg}` : ', message=(WebSocket error events expose no detail)');
+      } catch (_) {}
+      _debugVoice('error', { rawText: raw });
       console.error('[GeminiVoice] WS error:', e);
       _emit('error', { message: 'Connection mein dikkat aayi. Dobara koshish karo.' });
       _cleanupSession();
     };
 
     _ws.onclose = (e) => {
+      _debugVoice('closed', {
+        code: (e && e.code !== undefined) ? e.code : null,
+        reason: (e && e.reason) ? e.reason : '',
+        ok: false,
+        rawText: `closed code=${e && e.code}, reason=${(e && e.reason) || '(none)'}, wasClean=${e && e.wasClean}`
+      });
       if (_sessionActive) {
         console.warn('[GeminiVoice] WS closed unexpectedly:', e.code, e.reason);
         _emit('error', { message: 'Connection toot gayi. Mic dabao phir se.' });

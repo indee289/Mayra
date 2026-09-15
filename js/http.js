@@ -40,7 +40,18 @@ window.MayraHTTP = (() => {
     }
   }
 
-  async function request({ url, method = 'GET', headers = {}, data = undefined } = {}) {
+  /* Push a structured diagnostics entry to the on-screen debug panel.
+     DIAGNOSTICS ONLY — guarded so a missing MayraDebug never breaks a
+     request, and secret redaction happens inside MayraDebug.log. */
+  function _debugLog(tag, path, url, method, status, rawText, ok) {
+    try {
+      if (window.MayraDebug && window.MayraDebug.log) {
+        window.MayraDebug.log({ tag, path, url, method, status, rawText, ok });
+      }
+    } catch (_) { /* logging must never break the request */ }
+  }
+
+  async function request({ url, method = 'GET', headers = {}, data = undefined, tag = 'HTTP' } = {}) {
     const upperMethod = (method || 'GET').toUpperCase();
     const isBodyless  = upperMethod === 'GET' || upperMethod === 'HEAD';
 
@@ -63,8 +74,11 @@ window.MayraHTTP = (() => {
         const res = await cap.Plugins.CapacitorHttp.request(opts);
         const status = res.status;
         const ok = status >= 200 && status < 300;
+        _debugLog(tag, 'native', url, upperMethod, status, res.data, ok);
         return { ok, status, data: _maybeParseJSON(res.data) };
       } catch (e) {
+        const msg = (e && (e.message || e.toString())) || 'unknown native error';
+        _debugLog(tag, 'native', url, upperMethod, 'blocked/threw', msg, false);
         try { console.error('[MayraHTTP] native request failed:', e && (e.message || e), e); } catch (_) {}
         throw e;
       }
@@ -84,8 +98,11 @@ window.MayraHTTP = (() => {
       } catch (_) {
         parsed = await res.text().catch(() => null);
       }
+      _debugLog(tag, 'fetch', url, upperMethod, status, parsed, res.ok);
       return { ok: res.ok, status, data: parsed };
     } catch (e) {
+      const msg = (e && (e.message || e.toString())) || 'unknown fetch error';
+      _debugLog(tag, 'fetch', url, upperMethod, 'blocked/threw', msg, false);
       try { console.error('[MayraHTTP] fetch failed:', e && (e.message || e), e); } catch (_) {}
       throw e;
     }

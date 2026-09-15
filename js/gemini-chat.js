@@ -64,6 +64,7 @@ const GeminiChat = (() => {
         };
 
         const r = await MayraHTTP.request({
+          tag: 'CHAT',
           url: `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -111,6 +112,7 @@ const GeminiChat = (() => {
     while (attempt <= MAX_RETRIES) {
       try {
         const r = await MayraHTTP.request({
+          tag: 'CHAT',
           url,
           method: 'POST',
           headers: {
@@ -215,6 +217,7 @@ const GeminiChat = (() => {
          This follow-up turn ALSO goes through MayraHTTP so it uses native
          HTTP inside the app (not subject to WebView CORS). */
       const r2 = await MayraHTTP.request({
+        tag: 'CHAT',
         url: `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

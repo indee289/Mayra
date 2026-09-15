@@ -494,7 +494,20 @@
   ═══════════════════════════════════════════ -->
   <div id="toast" class="toast hidden"></div>
 
+  <!-- ═══════════════════════════════════════════
+       DEBUG DIAGNOSTICS (on-screen logs)
+       The floating toggle button and panel are wired/painted by
+       js/debug.js (window.MayraDebug). Static anchors kept here so
+       the toggle is discoverable even before scripts run.
+  ═══════════════════════════════════════════ -->
+  <button id="mayra-debug-toggle" class="mayra-debug-toggle" type="button"
+          onclick="window.MayraDebug && MayraDebug.toggle()" aria-label="Open debug panel">🐞 Debug</button>
+  <div id="mayra-debug-panel" class="mayra-debug-panel hidden" role="dialog" aria-label="Debug diagnostics"></div>
+
   <!-- SCRIPTS -->
+  <!-- Debug diagnostics panel: MUST load first so MayraDebug exists
+       before any logging call fires (storage/http/voice/chat/app). -->
+  <script src="js/debug.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/android-bridge.js"></script>
   <script src="js/http.js"></script>

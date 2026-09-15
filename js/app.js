@@ -57,6 +57,12 @@ const App = (() => {
      INIT
   ════════════════════════════════════════════════════ */
   function init() {
+    /* One-time environment diagnostics line (native HTTP path availability,
+       Capacitor presence, userAgent). DIAGNOSTICS ONLY — guarded. */
+    if (window.MayraDebug && window.MayraDebug.logEnv) {
+      try { window.MayraDebug.logEnv(); } catch (_) {}
+    }
+
     /* Apply persisted theme */
     if (Storage.getDarkMode()) {
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -271,6 +277,7 @@ const App = (() => {
     if (prov === 'gemini') {
       try {
         const r = await MayraHTTP.request({
+          tag: 'KEY-SAVE',
           url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -290,6 +297,7 @@ const App = (() => {
     if (prov === 'groq') {
       try {
         const r = await MayraHTTP.request({
+          tag: 'KEY-SAVE',
           url: 'https://api.groq.com/openai/v1/models',
           method: 'GET',
           headers: { 'Authorization': `Bearer ${key}` }
@@ -306,6 +314,7 @@ const App = (() => {
     if (prov === 'openai') {
       try {
         const r = await MayraHTTP.request({
+          tag: 'KEY-SAVE',
           url: 'https://api.openai.com/v1/models',
           method: 'GET',
           headers: { 'Authorization': `Bearer ${key}` }
