@@ -270,18 +270,16 @@ const App = (() => {
 
     if (prov === 'gemini') {
       try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'hi' }] }] })
-          }
-        );
+        const r = await MayraHTTP.request({
+          url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          data: { contents: [{ role: 'user', parts: [{ text: 'hi' }] }] }
+        });
         /* 200 OK or 400 (reachable, key format acceptable) => valid.
            401/403 => genuine auth error. Anything else => treat as network. */
-        if (res.ok || res.status === 400) return 'valid';
-        if (res.status === 401 || res.status === 403) return 'auth_error';
+        if (r.ok || r.status === 400) return 'valid';
+        if (r.status === 401 || r.status === 403) return 'auth_error';
         return 'network_error';
       } catch (e) {
         try { console.error('[Mayra] gemini key check transport failure:', e && (e.message || e), e); } catch (_) {}
@@ -291,12 +289,13 @@ const App = (() => {
 
     if (prov === 'groq') {
       try {
-        const res = await fetch('https://api.groq.com/openai/v1/models', {
+        const r = await MayraHTTP.request({
+          url: 'https://api.groq.com/openai/v1/models',
           method: 'GET',
           headers: { 'Authorization': `Bearer ${key}` }
         });
-        if (res.ok) return 'valid';
-        if (res.status === 401 || res.status === 403) return 'auth_error';
+        if (r.ok) return 'valid';
+        if (r.status === 401 || r.status === 403) return 'auth_error';
         return 'network_error';
       } catch (e) {
         try { console.error('[Mayra] groq key check transport failure:', e && (e.message || e), e); } catch (_) {}
@@ -306,12 +305,13 @@ const App = (() => {
 
     if (prov === 'openai') {
       try {
-        const res = await fetch('https://api.openai.com/v1/models', {
+        const r = await MayraHTTP.request({
+          url: 'https://api.openai.com/v1/models',
           method: 'GET',
           headers: { 'Authorization': `Bearer ${key}` }
         });
-        if (res.ok) return 'valid';
-        if (res.status === 401 || res.status === 403) return 'auth_error';
+        if (r.ok) return 'valid';
+        if (r.status === 401 || r.status === 403) return 'auth_error';
         return 'network_error';
       } catch (e) {
         try { console.error('[Mayra] openai key check transport failure:', e && (e.message || e), e); } catch (_) {}

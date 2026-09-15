@@ -6,6 +6,11 @@
 ═══════════════════════════════════════════════════════════ */
 const GeminiVoice = (() => {
 
+  /* NOTE: Voice uses a WebSocket (wss://) transport, NOT fetch/HTTP, so
+     CapacitorHttp / MayraHTTP does not apply here — WebSockets are not
+     subject to the same WebView CORS block. Voice transport is out of
+     scope for the native-HTTP LLM fix. */
+
   /* ── Constants ── */
   const WS_HOST      = 'generativelanguage.googleapis.com';
   const MODEL        = 'models/gemini-2.0-flash-live-001';

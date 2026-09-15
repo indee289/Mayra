@@ -63,28 +63,24 @@ const GeminiChat = (() => {
           }
         };
 
-        const res = await fetch(
-          `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-          }
-        );
+        const r = await MayraHTTP.request({
+          url: `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          data: body
+        });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          if (res.status === 401 || res.status === 403) {
+        if (!r.ok) {
+          if (r.status === 401 || r.status === 403) {
             return { ok: false, error: 'invalid_key', message: 'API key sahi nahi laga. Settings mein check karo.' };
           }
-          if (res.status === 429) {
+          if (r.status === 429) {
             return { ok: false, error: 'quota', message: 'Abhi thoda busy hoon, thodi der mein phir koshish karo!' };
           }
-          throw new Error(`HTTP ${res.status}: ${JSON.stringify(err)}`);
+          throw new Error(`HTTP ${r.status}: ${JSON.stringify(r.data)}`);
         }
 
-        const data = await res.json();
-        return _processResponse(data, userText, apiKey, systemInstruction);
+        return _processResponse(r.data, userText, apiKey, systemInstruction);
 
       } catch (e) {
         attempt++;
@@ -114,32 +110,32 @@ const GeminiChat = (() => {
 
     while (attempt <= MAX_RETRIES) {
       try {
-        const res = await fetch(url, {
+        const r = await MayraHTTP.request({
+          url,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey}`
           },
-          body: JSON.stringify({
+          data: {
             model,
             messages,
             temperature: 0.85
-          })
+          }
         });
 
-        if (!res.ok) {
+        if (!r.ok) {
           /* Mirror Gemini's warm error handling — never surface raw JSON. */
-          if (res.status === 401 || res.status === 403) {
+          if (r.status === 401 || r.status === 403) {
             return { ok: false, error: 'invalid_key', message: 'API key sahi nahi laga. Settings mein check karo.' };
           }
-          if (res.status === 429) {
+          if (r.status === 429) {
             return { ok: false, error: 'quota', message: 'Abhi thoda busy hoon, thodi der mein phir koshish karo!' };
           }
-          const err = await res.text().catch(() => '');
-          throw new Error(`HTTP ${res.status}: ${err}`);
+          throw new Error(`HTTP ${r.status}: ${typeof r.data === 'string' ? r.data : JSON.stringify(r.data)}`);
         }
 
-        const data = await res.json();
+        const data = r.data;
         const replyText = (data.choices?.[0]?.message?.content || '').trim();
         if (!replyText) {
           return { ok: false, error: 'empty', message: 'Kuch samajh nahi aaya, phir bolo?' };
@@ -215,21 +211,21 @@ const GeminiChat = (() => {
       /* Now persist the user turn to session history */
       Storage.appendMessage('user', originalUserText);
 
-      /* Ask Gemini to reply naturally after the function call */
-      const res2 = await fetch(
-        `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents: history2,
-            generation_config: { temperature: 0.85, top_p: 0.95, max_output_tokens: 300 }
-          })
+      /* Ask Gemini to reply naturally after the function call.
+         This follow-up turn ALSO goes through MayraHTTP so it uses native
+         HTTP inside the app (not subject to WebView CORS). */
+      const r2 = await MayraHTTP.request({
+        url: `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: {
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents: history2,
+          generation_config: { temperature: 0.85, top_p: 0.95, max_output_tokens: 300 }
         }
-      );
-      if (res2.ok) {
-        const data2 = await res2.json();
+      });
+      if (r2.ok) {
+        const data2 = r2.data;
         const replyText = data2.candidates?.[0]?.content?.parts?.[0]?.text || followUps;
         Storage.appendMessage('model', replyText);
         return { ok: true, text: replyText, functionResults: results };
