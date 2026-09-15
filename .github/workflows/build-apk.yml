@@ -34,27 +34,40 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 4. Android SDK
+      # 4. Android SDK — pinned cmdline-tools + explicit license accept
+      #    (setup-android v3 default kabhi license accept par fail hota hai,
+      #     isliye version pin karke saari licenses manually accept karte hain)
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+          accept-android-sdk-licenses: true
+          packages: ''
 
-      # 5. Gradle (wrapper jar ke bina bhi kaam kare, cache ke saath)
+      # 5. Required SDK packages install + saari licenses accept
+      - name: Install Android SDK packages & accept licenses
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+      # 6. Gradle (wrapper jar ke bina bhi kaam kare, cache ke saath)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # 6. NPM dependencies install (Capacitor core/cli/android/assets)
+      # 7. NPM dependencies install (Capacitor core/cli/android/assets)
       - name: Install npm dependencies
         run: npm install
 
-      # 7. Web assets ko webDir (www) me copy karo
+      # 8. Web assets ko webDir (www) me copy karo
       - name: Copy web assets into webDir
         run: npm run copy:web
 
-      # 8. Capacitor sync — web assets + native config ko android project me daalta hai
+      # 9. Capacitor sync — web assets + native config ko android project me daalta hai
       - name: Capacitor sync (android)
         run: npx cap sync android
 
-      # 9. Gradle wrapper ensure karo (agar jar missing ho to generate ho jaye)
+      # 10. Gradle wrapper ensure karo (agar jar missing ho to generate ho jaye)
       - name: Ensure Gradle wrapper
         working-directory: android
         run: |
@@ -64,7 +77,7 @@ jobs:
           fi
           chmod +x ./gradlew
 
-      # 10. Build-time release keystore generate karo (koi real secret commit nahi)
+      # 11. Build-time release keystore generate karo (koi real secret commit nahi)
       - name: Generate release keystore
         run: |
           keytool -genkeypair -v \
@@ -75,7 +88,7 @@ jobs:
             -keypass mayra_release_2024 \
             -dname "CN=Priya ki Dost, OU=Mayra, O=PriyaKiDost, L=India, ST=IN, C=IN"
 
-      # 11. Signed RELEASE APK build karo
+      # 12. Signed RELEASE APK build karo
       - name: Build signed release APK
         working-directory: android
         env:
@@ -85,7 +98,7 @@ jobs:
           MAYRA_KEY_PASSWORD: mayra_release_2024
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      # 12. Built APK dhoondho aur rename karo
+      # 13. Built APK dhoondho aur rename karo
       - name: Locate APK
         id: apk
         run: |
@@ -94,14 +107,14 @@ jobs:
           cp "$APK" "priya-ki-dost-v2.0.${{ github.run_number }}.apk"
           echo "path=priya-ki-dost-v2.0.${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
 
-      # 13. Build artifact ke roop me upload (har run me available)
+      # 14. Build artifact ke roop me upload (har run me available)
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: priya-ki-dost-apk
           path: ${{ steps.apk.outputs.path }}
 
-      # 14. GitHub Release banao aur APK attach karo
+      # 15. GitHub Release banao aur APK attach karo
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
