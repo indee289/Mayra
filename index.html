@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#F9EFE7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Priya ki Dost</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN 1 — SPLASH
+  ═══════════════════════════════════════════ -->
+  <div id="screen-splash" class="screen active">
+    <div class="splash-bg"></div>
+    <div class="splash-content">
+      <div class="splash-logo">
+        <div class="splash-orb">
+          <div class="splash-orb-inner"></div>
+          <div class="splash-waveform">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+      <div class="splash-text">
+        <h1 class="splash-app-name">Priya ki <span class="accent">Dost</span></h1>
+        <p class="splash-tagline">Tumhari AI Saheli</p>
+        <p class="splash-greeting">Hi, main <span class="accent">Mayra</span> hoon ❤️</p>
+      </div>
+      <div class="splash-loader">
+        <div class="loader-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+    <div class="splash-pattern"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN 2 — ONBOARDING / PERMISSIONS
+  ═══════════════════════════════════════════ -->
+  <div id="screen-onboarding" class="screen">
+    <div class="onboarding-slides">
+
+      <!-- Slide: Welcome -->
+      <div class="onboard-slide active" data-slide="welcome">
+        <div class="onboard-orb small">
+          <div class="onboard-orb-inner"></div>
+        </div>
+        <h2>Namaste! 🙏</h2>
+        <p>Main Mayra hoon — tumhari AI saheli.<br>Main hamesha tumhare saath hoon.</p>
+        <button class="btn-primary" onclick="App.onboardNext()">Shuru karein →</button>
+      </div>
+
+      <!-- Slide: API Key -->
+      <div class="onboard-slide" data-slide="apikey">
+        <div class="onboard-icon">🔑</div>
+        <h2>Ek chhoti si setting</h2>
+        <p>Baat karne ke liye mujhe tumhara Gemini API key chahiye.<br>Yeh sirf tumhare device par safe rehta hai — kahin nahi jaata.</p>
+        <div class="api-key-input-wrap">
+          <input type="password" id="onboard-api-key" placeholder="Apna API key yahan daalo..." autocomplete="off" spellcheck="false" />
+          <button class="toggle-eye" onclick="App.toggleApiKeyVisibility('onboard-api-key')" aria-label="Show/hide key">👁</button>
+        </div>
+        <p id="onboard-api-error" class="error-msg hidden"></p>
+        <button class="btn-primary" onclick="App.validateAndSaveApiKey('onboard')">Save karein</button>
+        <button class="btn-ghost" onclick="App.skipApiKey()">Baad mein karein</button>
+      </div>
+
+      <!-- Slide: Mic Permission -->
+      <div class="onboard-slide" data-slide="mic">
+        <div class="onboard-icon">🎤</div>
+        <h2>Microphone access</h2>
+        <p>Mayra ko sunne ke liye microphone access chahiye.<br>Bolo, main sun rahi hoon!</p>
+        <button class="btn-primary" onclick="App.requestMicPermission()">Microphone allow karein</button>
+        <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
+      </div>
+
+      <!-- Slide: Contacts Permission -->
+      <div class="onboard-slide" data-slide="contacts">
+        <div class="onboard-icon">📞</div>
+        <h2>Contacts access</h2>
+        <p>Taaki jab aap kahen "Mom ko call karo",<br>Mayra sahi contact dhoondh sake.</p>
+        <button class="btn-primary" onclick="App.requestContactsPermission()">Contacts allow karein</button>
+        <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
+      </div>
+
+      <!-- Slide: All set -->
+      <div class="onboard-slide" data-slide="done">
+        <div class="onboard-orb small">
+          <div class="onboard-orb-inner"></div>
+        </div>
+        <h2>Sab ready hai! ✨</h2>
+        <p>Chalo baat karte hain,<br>main tumhara intezaar kar rahi thi 💕</p>
+        <button class="btn-primary" onclick="App.finishOnboarding()">Chalo shuru karein!</button>
+      </div>
+
+    </div>
+    <div class="onboard-dots" id="onboard-dots"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       MAIN APP SHELL (shown after onboarding)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-app" class="screen">
+
+    <!-- TOP HEADER -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-logo">❤️</div>
+        <div class="header-titles">
+          <span class="header-app-name">Priya ki <span class="accent">Dost</span></span>
+          <span class="header-sub">Tumhari AI Saheli</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" id="btn-gift" aria-label="Surprises" onclick="App.showComingSoon('Surprise features')">🎁</button>
+        <button class="header-btn" id="btn-settings" aria-label="Settings" onclick="App.showScreen('settings')">⚙️</button>
+      </div>
+    </header>
+
+    <!-- TAB VIEWS -->
+    <div class="tab-views">
+
+      <!-- ── HOME TAB ── -->
+      <div class="tab-view active" id="tab-home">
+        <div class="home-greeting">
+          <h2 id="home-greeting-text">Hello Priya ❤️</h2>
+          <p class="home-subtitle">Main <span class="accent">Mayra</span> hoon</p>
+          <p class="home-tagline">Tumhari AI dost, hamesha tumhare saath</p>
+        </div>
+
+        <!-- MAIN ORB -->
+        <div class="orb-container" id="orb-container">
+          <div class="orb-rings">
+            <div class="orb-ring ring-3"></div>
+            <div class="orb-ring ring-2"></div>
+            <div class="orb-ring ring-1"></div>
+          </div>
+          <div class="orb-main" id="orb-main">
+            <div class="orb-glow"></div>
+            <div class="orb-waveform" id="orb-waveform">
+              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="orb-mic-icon" id="orb-mic-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 1a4 4 0 014 4v7a4 4 0 01-8 0V5a4 4 0 014-4z" fill="white"/>
+                <path d="M19 10v2a7 7 0 01-14 0v-2" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <line x1="12" y1="19" x2="12" y2="23" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <line x1="8" y1="23" x2="16" y2="23" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="orb-status" id="orb-status">
+          <p class="status-primary" id="status-primary">Main sun rahi hoon...</p>
+          <p class="status-secondary" id="status-secondary">Bolo, jo bhi dil mein hai ❤️</p>
+        </div>
+
+        <!-- QUICK PROMPTS -->
+        <div class="quick-prompts" id="quick-prompts">
+          <button class="prompt-chip" onclick="App.sendQuickPrompt('Mujhe kuch salah chahiye')">
+            <span class="chip-icon">🤍</span>
+            <span>Mujhe<br>kuch salah chahiye</span>
+          </button>
+          <button class="prompt-chip" onclick="App.sendQuickPrompt('Aaj mera mood off hai')">
+            <span class="chip-icon">✨</span>
+            <span>Aaj mera mood<br>off hai</span>
+          </button>
+          <button class="prompt-chip" onclick="App.sendQuickPrompt('Mujhe motivated karo')">
+            <span class="chip-icon">🪷</span>
+            <span>Mujhe motivated<br>karo</span>
+          </button>
+        </div>
+
+        <!-- VOICE / CHAT TOGGLE -->
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="mode-voice" onclick="App.setMode('voice')">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 1a4 4 0 014 4v7a4 4 0 01-8 0V5a4 4 0 014-4z" fill="currentColor"/><path d="M19 10v2a7 7 0 01-14 0v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Voice
+          </button>
+          <button class="mode-btn" id="mode-chat" onclick="App.setMode('chat')">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            Chat
+          </button>
+        </div>
+      </div>
+
+      <!-- ── CHAT TAB ── -->
+      <div class="tab-view" id="tab-chat">
+        <div class="chat-header">
+          <button class="back-btn" onclick="App.goBackHome()">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="chat-header-info">
+            <div class="chat-avatar">M</div>
+            <div>
+              <span class="chat-name">Mayra</span>
+              <span class="chat-status-dot" id="chat-status-dot">● Online</span>
+            </div>
+          </div>
+          <button class="header-btn" onclick="App.speakLastMessage()" title="Mayra ki awaaz mein suno">🔊</button>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-date-divider">Aaj</div>
+          <!-- messages injected here -->
+        </div>
+
+        <div class="chat-typing-indicator hidden" id="chat-typing">
+          <div class="chat-avatar small">M</div>
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+
+        <div class="chat-input-bar">
+          <button class="chat-mic-btn" id="chat-mic-btn" onclick="App.toggleChatVoice()" aria-label="Voice input">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 1a4 4 0 014 4v7a4 4 0 01-8 0V5a4 4 0 014-4z" fill="currentColor"/><path d="M19 10v2a7 7 0 01-14 0v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <textarea id="chat-input" placeholder="Kuch bhi likho..." rows="1" onkeydown="App.chatKeyDown(event)" oninput="App.autoResizeTextarea(this)"></textarea>
+          <button class="chat-send-btn" onclick="App.sendChatMessage()" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22 11 13 2 9l20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── WELLNESS TAB ── -->
+      <div class="tab-view" id="tab-wellness">
+        <div class="coming-soon-view">
+          <div class="cs-icon">🌸</div>
+          <h3>Wellness</h3>
+          <p>Mood tracking, journaling, aur relaxation exercises — jaldi aa rahe hain!</p>
+        </div>
+      </div>
+
+      <!-- ── DISCOVER TAB ── -->
+      <div class="tab-view" id="tab-discover">
+        <div class="coming-soon-view">
+          <div class="cs-icon">📖</div>
+          <h3>Discover</h3>
+          <p>Kahaniyaan, tips aur naye features — jaldi aa rahe hain!</p>
+        </div>
+      </div>
+
+      <!-- ── PROFILE TAB ── -->
+      <div class="tab-view" id="tab-profile">
+        <div class="profile-view">
+          <div class="profile-avatar-wrap">
+            <div class="profile-avatar">P</div>
+            <button class="profile-edit-btn" onclick="App.editName()">✏️</button>
+          </div>
+          <h3 id="profile-name">Priya</h3>
+          <p class="profile-sub">Mayra ki pyaari saheli</p>
+          <div class="profile-stats">
+            <div class="stat-card">
+              <span class="stat-val" id="stat-days">1</span>
+              <span class="stat-label">Din saath</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-val" id="stat-chats">0</span>
+              <span class="stat-label">Baatein</span>
+            </div>
+          </div>
+          <button class="btn-outline" onclick="App.showScreen('settings')">⚙️ Settings</button>
+        </div>
+      </div>
+
+    </div><!-- /tab-views -->
+
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-tab="home" onclick="App.switchTab('home')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Home</span>
+      </button>
+      <button class="nav-item" data-tab="wellness" onclick="App.switchTab('wellness')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span>Wellness</span>
+      </button>
+      <button class="nav-item" data-tab="discover" onclick="App.switchTab('discover')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span>Discover</span>
+      </button>
+      <button class="nav-item" data-tab="profile" onclick="App.switchTab('profile')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Profile</span>
+      </button>
+    </nav>
+
+  </div><!-- /screen-app -->
+
+  <!-- ═══════════════════════════════════════════
+       SETTINGS SCREEN (overlay)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-settings" class="screen overlay-screen">
+    <div class="overlay-header">
+      <button class="back-btn" onclick="App.hideScreen('settings')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>Settings</h2>
+      <div style="width:40px"></div>
+    </div>
+
+    <div class="settings-body">
+
+      <section class="settings-section">
+        <h4 class="settings-section-title">🔑 Gemini API Key</h4>
+        <div class="api-key-input-wrap">
+          <input type="password" id="settings-api-key" placeholder="Apna Gemini API key daalo..." autocomplete="off" spellcheck="false" />
+          <button class="toggle-eye" onclick="App.toggleApiKeyVisibility('settings-api-key')" aria-label="Toggle visibility">👁</button>
+        </div>
+        <p id="settings-api-status" class="api-status-msg"></p>
+        <div class="settings-row">
+          <button class="btn-primary small" onclick="App.validateAndSaveApiKey('settings')">Save</button>
+          <button class="btn-ghost small" onclick="App.clearApiKey()">Remove</button>
+        </div>
+        <p class="settings-hint">Tumhara key sirf tumhare device par secure store hota hai. Hum ise kabhi log, share, ya store nahi karte — yeh directly Google ke API ko jaata hai.</p>
+      </section>
+
+      <section class="settings-section">
+        <h4 class="settings-section-title">👤 Profile</h4>
+        <div class="settings-row">
+          <label>Tumhara naam</label>
+          <input type="text" id="settings-username" placeholder="Tumhara naam..." maxlength="30" />
+        </div>
+        <button class="btn-outline small" onclick="App.saveUsername()">Save naam</button>
+      </section>
+
+      <section class="settings-section">
+        <h4 class="settings-section-title">🎨 Appearance</h4>
+        <div class="settings-toggle-row">
+          <span>Dark mode</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-dark-mode" onchange="App.toggleDarkMode(this.checked)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h4 class="settings-section-title">🔒 Permissions</h4>
+        <div class="permission-item">
+          <span>🎤 Microphone</span>
+          <span class="perm-status" id="perm-mic">Checking...</span>
+        </div>
+        <div class="permission-item">
+          <span>📞 Contacts</span>
+          <span class="perm-status" id="perm-contacts">Checking...</span>
+        </div>
+        <button class="btn-ghost small" onclick="App.openSystemSettings()">System settings mein jaao</button>
+      </section>
+
+      <section class="settings-section">
+        <h4 class="settings-section-title">ℹ️ About</h4>
+        <p class="settings-hint">Priya ki Dost — Version 2.0<br>Powered by Gemini Live<br>Made with ❤️ for India</p>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       TOAST NOTIFICATION
+  ═══════════════════════════════════════════ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- SCRIPTS -->
+  <script src="js/storage.js"></script>
+  <script src="js/android-bridge.js"></script>
+  <script src="js/functions.js"></script>
+  <script src="js/gemini-voice.js"></script>
+  <script src="js/gemini-chat.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
