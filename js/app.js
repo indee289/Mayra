@@ -76,6 +76,10 @@ const App = (() => {
     /* Pre-fill settings */
     _prefillSettings();
 
+    /* Seed the onboarding provider select from storage so a returning user
+       re-entering onboarding sees the provider that's actually stored. */
+    _seedOnboardProvider();
+
     /* Onboarding dots */
     _renderOnboardDots();
 
@@ -173,7 +177,14 @@ const App = (() => {
       return;
     }
 
-    const provider = Storage.getProvider();
+    /* Read the provider from the context-appropriate select so the key is
+       saved under the provider the user actually sees. Fall back to the
+       stored provider if the select is missing, then persist it so the
+       validation/save below uses the shown provider. */
+    const provSelId = context === 'onboard' ? 'onboard-provider' : 'settings-provider';
+    const provSel   = document.getElementById(provSelId);
+    const provider  = (provSel && provSel.value) ? provSel.value : Storage.getProvider();
+    Storage.setProvider(provider);
 
     /* Live validation ping */
     if (errEl) {
@@ -694,6 +705,19 @@ const App = (() => {
     _updatePermissionStatus();
   }
 
+  /* Seed the onboarding provider select from storage and set the key-input
+     placeholder to match — mirrors how _prefillSettings seeds #settings-provider,
+     so the onboarding UI stays honest for a returning user. */
+  function _seedOnboardProvider() {
+    const provider = Storage.getProvider();
+
+    const providerSel = document.getElementById('onboard-provider');
+    if (providerSel) providerSel.value = provider;
+
+    const keyInput = document.getElementById('onboard-api-key');
+    if (keyInput) keyInput.placeholder = `Apna ${_providerLabel(provider)} API key yahan daalo...`;
+  }
+
   function clearApiKey() {
     Storage.clearApiKey();
     const keyInput = document.getElementById('settings-api-key');
@@ -735,7 +759,9 @@ const App = (() => {
     const accessEl   = document.getElementById('perm-accessibility');
 
     if (micEl) {
-      const micState = await AndroidBridge.checkPermission('microphone');
+      /* Prefer live native state; fall back to persisted (storage key is 'mic'). */
+      let micState = await AndroidBridge.checkPermission('microphone');
+      if (micState === 'unknown') micState = Storage.getPermission('mic') || 'unknown';
       micEl.textContent = _permLabel(micState);
       micEl.className   = `perm-status ${_permClass(micState)}`;
     }
