@@ -93,52 +93,111 @@ class MayraAndroidPlugin : Plugin() {
     @PluginMethod
     fun makeCall(call: PluginCall) {
         val number = call.getString("phoneNumber") ?: run { call.reject("phoneNumber required"); return }
-        // Use ACTION_DIAL (no CALL_PHONE permission needed)
-        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+$number"))
-        activity.startActivity(intent)
-        call.resolve(JSObject().put("success", true))
+        val act = activity
+        if (act == null) {
+            // No activity to launch the dialer from — never crash.
+            call.resolve(JSObject().put("success", false).put("error", "no_activity"))
+            return
+        }
+        try {
+            // Use ACTION_DIAL (no CALL_PHONE permission needed)
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+$number"))
+            act.startActivity(intent)
+            call.resolve(JSObject().put("success", true))
+        } catch (e: Exception) {
+            // ActivityNotFoundException / SecurityException / anything else — resolve safely.
+            call.resolve(JSObject().put("success", false).put("error", e.message ?: "dial_failed"))
+        }
     }
 
     // ── callContact ────────────────────────────────────────────
+    // Crash-proof: never queries contacts without a granted READ_CONTACTS,
+    // and wraps all cursor/startActivity work in try/catch so any failure
+    // resolves a safe result instead of throwing (which would crash the app).
     @PluginMethod
     fun callContact(call: PluginCall) {
         val name = call.getString("name") ?: run { call.reject("name required"); return }
-        val matches = mutableListOf<JSObject>()
 
-        val cursor = activity.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            arrayOf(
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                ContactsContract.CommonDataKinds.Phone.NUMBER
-            ),
-            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
-            arrayOf("%$name%"),
-            null
-        )
-
-        cursor?.use {
-            val nameIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-            val numIdx  = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-            while (it.moveToNext()) {
-                val entry = JSObject()
-                    .put("name",   it.getString(nameIdx))
-                    .put("number", it.getString(numIdx))
-                matches.add(entry)
-            }
+        // Permission gate: if READ_CONTACTS is not granted, request it FIRST
+        // rather than querying (an unguarded query throws SecurityException).
+        if (getPermissionState("contacts") != PermissionState.GRANTED) {
+            requestPermissionForAlias("contacts", call, "contactsPermissionCallback")
+            return
         }
+        doCallContact(call, name)
+    }
 
+    // ── contactsPermissionCallback ────────────────────────────
+    // Re-delivered after the OS contacts dialog resolves. If granted, do the
+    // lookup; otherwise resolve a safe { matches: [], permission: "denied" }.
+    @PermissionCallback
+    private fun contactsPermissionCallback(call: PluginCall) {
+        val name = call.getString("name") ?: ""
+        if (getPermissionState("contacts") == PermissionState.GRANTED) {
+            doCallContact(call, name)
+        } else {
+            val result = JSObject()
+            result.put("matches", com.getcapacitor.JSArray())
+            result.put("permission", "denied")
+            call.resolve(result)
+        }
+    }
+
+    // ── doCallContact ─────────────────────────────────────────
+    // The actual contacts lookup + dial. Assumes READ_CONTACTS is granted.
+    // Everything is wrapped so no failure can crash the app.
+    private fun doCallContact(call: PluginCall, name: String) {
         val result = JSObject()
         val matchArray = com.getcapacitor.JSArray()
-        matches.forEach { matchArray.put(it) }
-        result.put("matches", matchArray)
 
-        if (matches.size == 1) {
-            val number = matches[0].getString("number") ?: ""
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
-            activity.startActivity(intent)
-            result.put("calledNumber", number)
+        val act = activity
+        if (act == null) {
+            result.put("matches", matchArray)
+            result.put("error", "no_activity")
+            call.resolve(result)
+            return
         }
-        call.resolve(result)
+
+        try {
+            val matches = mutableListOf<JSObject>()
+            val cursor = act.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                ),
+                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
+                arrayOf("%$name%"),
+                null
+            )
+
+            cursor?.use {
+                val nameIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numIdx  = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                while (it.moveToNext()) {
+                    val entry = JSObject()
+                        .put("name",   it.getString(nameIdx))
+                        .put("number", it.getString(numIdx))
+                    matches.add(entry)
+                }
+            }
+
+            matches.forEach { matchArray.put(it) }
+            result.put("matches", matchArray)
+
+            if (matches.size == 1) {
+                val number = matches[0].getString("number") ?: ""
+                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
+                act.startActivity(intent)
+                result.put("calledNumber", number)
+            }
+            call.resolve(result)
+        } catch (e: Exception) {
+            // SecurityException, ActivityNotFoundException, cursor issues, etc.
+            result.put("matches", matchArray)
+            result.put("error", e.message ?: "contacts_failed")
+            call.resolve(result)
+        }
     }
 
     // ── openSettings ──────────────────────────────────────────
@@ -211,8 +270,8 @@ class MayraAndroidPlugin : Plugin() {
 
     // ── isAccessibilityEnabled ────────────────────────────────
     // Reports whether an accessibility service belonging to THIS app is enabled.
-    // No AccessibilityService class is shipped, so this returns false until the
-    // user enables one manually — acceptable per the minimum spec.
+    // MayraAccessibilityService is shipped, so this flips to true once the user
+    // enables it from the system Accessibility settings screen.
     @PluginMethod
     fun isAccessibilityEnabled(call: PluginCall) {
         val enabledServices = Settings.Secure.getString(

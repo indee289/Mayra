@@ -114,6 +114,7 @@ const MayraFunctions = (() => {
         }
         const r = await AndroidBridge.callContact(name);
         if (r.success)            return { ok: true, message: `${name} ko call kar rahi hoon...` };
+        if (r.reason === 'permission_denied') return { ok: false, reason: 'permission_denied' };
         if (r.reason === 'multiple_matches') return { ok: false, reason: 'multiple', matches: r.matches };
         if (r.reason === 'no_match') return { ok: false, reason: 'no_match', message: `"${name}" contacts mein nahi mila.` };
         return { ok: false, message: 'Call nahi laga paya.' };
@@ -139,6 +140,9 @@ const MayraFunctions = (() => {
       if (result.reason === 'multiple') {
         const names = (result.matches || []).map(m => m.name || m).join(', ');
         return `Mere paas ${args.contactName} ke do contacts hain: ${names} — kaunsa wala call karoon?`;
+      }
+      if (result.reason === 'permission_denied') {
+        return `Contacts dekhne ki permission nahi mili abhi, meri jaan. Ek baar contacts ki permission "Allow" kar do, phir main ${args.contactName} ko turant call laga dungi. 💛`;
       }
       if (result.reason === 'no_match') {
         return `"${args.contactName}" mujhe contacts mein nahi mila. Naam ek baar check karein?`;

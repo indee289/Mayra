@@ -115,15 +115,24 @@ const AndroidBridge = (() => {
 
     try {
       const result = await bridge.callContact({ name: contactName });
-      if (result.matches && result.matches.length > 1) {
-        return { success: false, reason: 'multiple_matches', matches: result.matches };
+      const matches = result.matches || [];
+      // Native crash-proof result: contacts permission was denied.
+      if (result.permission === 'denied') {
+        return { success: false, reason: 'permission_denied' };
       }
-      if (result.matches && result.matches.length === 0) {
+      if (matches.length === 0) {
+        // Empty either because the contact truly isn't there, or a soft
+        // native error occurred (result.error). Treat both as "no match"
+        // so Mayra never surfaces a raw error string.
         return { success: false, reason: 'no_match' };
+      }
+      if (matches.length > 1) {
+        return { success: false, reason: 'multiple_matches', matches };
       }
       return { success: true, calledNumber: result.calledNumber };
     } catch (e) {
-      return { success: false, reason: 'bridge_error', error: e.message };
+      // Bridge itself failed — degrade gracefully, no raw error to the user.
+      return { success: false, reason: 'no_match' };
     }
   }
 
