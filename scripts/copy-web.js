@@ -13,7 +13,7 @@ const root = __dirname ? path.resolve(__dirname, '..') : process.cwd();
 const dest = path.join(root, 'www');
 
 // Web assets to bundle into the WebView.
-const ITEMS = ['index.html', 'manifest.json', 'css', 'js', 'assets'];
+const ITEMS = ['index.html', 'manifest.json', 'sw.js', 'css', 'js', 'assets'];
 
 function rimraf(target) {
   if (fs.existsSync(target)) {

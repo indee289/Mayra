@@ -102,6 +102,9 @@ const App = (() => {
 
   function _showApp() {
     showScreen('app');
+    /* Sync orb to idle state so the user doesn't see the "listening"
+       copy before they've tapped to talk. */
+    _setOrbState('idle');
     /* Check if API key is set — if not, nudge warmly */
     if (!Storage.hasApiKey()) {
       setTimeout(() => {
@@ -300,11 +303,14 @@ const App = (() => {
     const texts = {
       idle:       ['Tap karke baat karo', 'Main yahaan hoon ❤️'],
       connecting: ['Connect ho rahi hoon...', 'Ek second...'],
+      ready:      ['Main sun rahi hoon...', 'Bolo, jo bhi dil mein hai ❤️'],
       listening:  ['Main sun rahi hoon...', 'Bolo, jo bhi dil mein hai ❤️'],
       speaking:   ['Main bol rahi hoon...', ''],
       thinking:   ['Soch rahi hoon...', ''],
       error:      ['Ek baar phir try karo', 'Kuch dikkat aayi ❤️'],
     };
+    /* 'ready' shares the listening CSS animation */
+    if (state === 'ready') orb.className = 'orb-main listening';
     const [p, s] = texts[state] || texts.idle;
     if (primary)   primary.textContent   = p;
     if (secondary) secondary.textContent = s;
@@ -342,13 +348,16 @@ const App = (() => {
     });
 
     GeminiVoice.onTranscript(({ role, text }) => {
+      if (!text) return;
       if (role === 'user') {
         console.log('[Voice] User said:', text);
+        /* Persist user speech so voice <-> chat share the same context */
+        Storage.appendMessage('user', text);
       } else {
         _lastMayraMsg = text;
         console.log('[Voice] Mayra said:', text);
-        /* Persist in history */
-        if (text) Storage.appendMessage('model', text);
+        /* Persist Mayra's reply in history */
+        Storage.appendMessage('model', text);
       }
     });
 
@@ -698,3 +707,15 @@ const App = (() => {
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => App.init());
+
+/* ── Service Worker registration (offline / PWA install) ──
+   Only registers over http(s). Under Capacitor's file:// scheme
+   the WebView bundles assets natively, so SW isn't needed there. */
+if ('serviceWorker' in navigator &&
+    (location.protocol === 'https:' || location.protocol === 'http:')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then((reg) => console.log('[SW] registered:', reg.scope))
+      .catch((err) => console.warn('[SW] registration failed:', err));
+  });
+}

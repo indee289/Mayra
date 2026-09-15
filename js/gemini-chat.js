@@ -88,11 +88,16 @@ const GeminiChat = (() => {
         MayraFunctions.buildFollowUpPrompt(fc.name, fc.args || {}, result)
       ).join(' ');
 
-      /* Store the user turn */
+      /* Build the follow-up request FIRST — _buildHistoryWithFunctionResults
+         appends the current user turn itself. If we persisted it to storage
+         beforehand, _buildHistory would read it back AND append it again,
+         duplicating the user message in the request. So build now, persist after. */
+      const history2 = _buildHistoryWithFunctionResults(originalUserText, fnCalls, results);
+
+      /* Now persist the user turn to session history */
       Storage.appendMessage('user', originalUserText);
 
       /* Ask Gemini to reply naturally after the function call */
-      const history2 = _buildHistoryWithFunctionResults(originalUserText, fnCalls, results);
       const res2 = await fetch(
         `${REST_HOST}/v1beta/${MODEL}:generateContent?key=${apiKey}`,
         {
