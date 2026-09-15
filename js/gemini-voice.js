@@ -262,12 +262,15 @@ const GeminiVoice = (() => {
   function _sendAudioChunk(pcm16Buffer) {
     if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
     const base64 = _pcm16ToBase64(pcm16Buffer);
+    /* Newer Gemini Live API: realtimeInput.mediaChunks[] is deprecated
+       (server closes with 1007). Audio now goes under realtimeInput.audio
+       as a single Blob { data, mimeType }. */
     _ws.send(JSON.stringify({
       realtimeInput: {
-        mediaChunks: [{
+        audio: {
           mimeType: 'audio/pcm;rate=16000',
           data: base64
-        }]
+        }
       }
     }));
   }
