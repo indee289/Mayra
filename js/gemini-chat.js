@@ -88,8 +88,14 @@ const GeminiChat = (() => {
 
       } catch (e) {
         attempt++;
+        /* Log the REAL error every attempt so a genuine transport failure
+           (e.g. WebView CORS block when CapacitorHttp isn't active, DNS,
+           timeout) is visible in logcat/devtools for debugging. Guard the
+           logging itself so an opaque/non-serialisable error never crashes. */
+        try {
+          console.error(`[GeminiChat] fetch failed (attempt ${attempt}):`, e && (e.message || e), e);
+        } catch (_) { /* ignore logging failure */ }
         if (attempt > MAX_RETRIES) {
-          console.error('[GeminiChat] Failed after retries:', e);
           return { ok: false, error: 'network', message: 'Network mein dikkat aayi. Thodi der baad try karo.' };
         }
         await _sleep(1000 * attempt);
@@ -146,8 +152,12 @@ const GeminiChat = (() => {
 
       } catch (e) {
         attempt++;
+        /* Log the REAL error every attempt (WebView CORS block, DNS, timeout,
+           opaque response). Guard logging so it can never itself throw. */
+        try {
+          console.error(`[Chat:${provider}] fetch failed (attempt ${attempt}):`, e && (e.message || e), e);
+        } catch (_) { /* ignore logging failure */ }
         if (attempt > MAX_RETRIES) {
-          console.error(`[Chat:${provider}] Failed after retries:`, e);
           return { ok: false, error: 'network', message: 'Network mein dikkat aayi. Thodi der baad try karo.' };
         }
         await _sleep(1000 * attempt);

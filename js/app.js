@@ -283,7 +283,8 @@ const App = (() => {
         if (res.ok || res.status === 400) return 'valid';
         if (res.status === 401 || res.status === 403) return 'auth_error';
         return 'network_error';
-      } catch {
+      } catch (e) {
+        try { console.error('[Mayra] gemini key check transport failure:', e && (e.message || e), e); } catch (_) {}
         return 'network_error';
       }
     }
@@ -297,7 +298,8 @@ const App = (() => {
         if (res.ok) return 'valid';
         if (res.status === 401 || res.status === 403) return 'auth_error';
         return 'network_error';
-      } catch {
+      } catch (e) {
+        try { console.error('[Mayra] groq key check transport failure:', e && (e.message || e), e); } catch (_) {}
         return 'network_error';
       }
     }
@@ -311,7 +313,8 @@ const App = (() => {
         if (res.ok) return 'valid';
         if (res.status === 401 || res.status === 403) return 'auth_error';
         return 'network_error';
-      } catch {
+      } catch (e) {
+        try { console.error('[Mayra] openai key check transport failure:', e && (e.message || e), e); } catch (_) {}
         return 'network_error';
       }
     }
