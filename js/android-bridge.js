@@ -205,6 +205,70 @@ const AndroidBridge = (() => {
     App.showToast('System settings yahan se nahi khulta — device settings mein jaao manually.');
   }
 
+  /* ── getLocation ──────────────────────────────────────── */
+  /* Returns { ok:true, latitude, longitude } on success, or
+     { ok:false, reason:'denied'|'unavailable' } on failure.
+     NEVER throws — always resolves. Prefers the Capacitor
+     Geolocation plugin when present, otherwise falls back to
+     navigator.geolocation (works inside the WebView with the
+     ACCESS_FINE/COARSE_LOCATION manifest permissions). */
+  async function getLocation() {
+    /* Capacitor Geolocation plugin path (if installed) */
+    const geo = window.Capacitor?.Plugins?.Geolocation;
+    if (geo && typeof geo.getCurrentPosition === 'function') {
+      try {
+        const pos = await geo.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 300000
+        });
+        const lat = pos?.coords?.latitude;
+        const lon = pos?.coords?.longitude;
+        if (typeof lat === 'number' && typeof lon === 'number') {
+          return { ok: true, latitude: lat, longitude: lon };
+        }
+        return { ok: false, reason: 'unavailable' };
+      } catch (e) {
+        const msg = (e && (e.message || String(e))) || '';
+        const denied = /denied|permission/i.test(msg);
+        return { ok: false, reason: denied ? 'denied' : 'unavailable' };
+      }
+    }
+
+    /* Browser / WebView fallback via navigator.geolocation */
+    if (navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+      return new Promise((resolve) => {
+        let settled = false;
+        const done = (val) => { if (!settled) { settled = true; resolve(val); } };
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = pos?.coords?.latitude;
+              const lon = pos?.coords?.longitude;
+              if (typeof lat === 'number' && typeof lon === 'number') {
+                done({ ok: true, latitude: lat, longitude: lon });
+              } else {
+                done({ ok: false, reason: 'unavailable' });
+              }
+            },
+            (err) => {
+              /* PERMISSION_DENIED === 1 */
+              const denied = err && err.code === 1;
+              done({ ok: false, reason: denied ? 'denied' : 'unavailable' });
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+          );
+        } catch (_) {
+          done({ ok: false, reason: 'unavailable' });
+        }
+        /* Safety net: never hang forever if the callback never fires */
+        setTimeout(() => done({ ok: false, reason: 'unavailable' }), 12000);
+      });
+    }
+
+    return { ok: false, reason: 'unavailable' };
+  }
+
   /* ── Helper ── */
   function _tryDeepLink(link, packageId) {
     const iframe = document.createElement('iframe');
@@ -230,5 +294,6 @@ const AndroidBridge = (() => {
     requestPermission,
     checkPermission,
     openSystemSettings,
+    getLocation,
   };
 })();

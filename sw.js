@@ -67,10 +67,13 @@ self.addEventListener('fetch', (event) => {
   /* Only handle GET */
   if (req.method !== 'GET') return;
 
-  /* NEVER cache LLM API traffic (Gemini / Groq / OpenAI) — always live network. */
+  /* NEVER cache LLM API traffic (Gemini / Groq / OpenAI) or live-info
+     APIs (Open-Meteo weather / Google News RSS) — always live network. */
   if (url.hostname.includes('generativelanguage.googleapis.com') ||
       url.hostname.includes('api.groq.com') ||
-      url.hostname.includes('api.openai.com')) {
+      url.hostname.includes('api.openai.com') ||
+      url.hostname.includes('api.open-meteo.com') ||
+      url.hostname.includes('news.google.com')) {
     return; /* let the browser handle it normally */
   }
 
