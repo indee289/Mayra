@@ -13,6 +13,10 @@
     <!-- Location awareness (runtime, dangerous) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Find the right person when you ask Mayra to call or message someone
+         by name. Contact data is only read on-device to resolve a number —
+         it is NEVER uploaded or shared anywhere. (runtime, dangerous) -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <!-- ════════════ HARDWARE FEATURES ════════════ -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -69,6 +73,19 @@
         <!-- Phone/Dialer intent -->
         <intent>
             <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <!-- Camera capture intent -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <!-- Still-image camera intent -->
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
+        <!-- Gallery / photos (view images) intent -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="image/*" />
         </intent>
         <!-- General URL intent -->
         <intent>
