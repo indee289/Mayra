@@ -88,50 +88,94 @@ const AndroidBridge = (() => {
   }
 
   /* ── makeCall ─────────────────────────────────────────── */
+  /* DIAGNOSTICS: log a CALL entry to the on-screen debug panel capturing the
+     number, whether the native path was used, the intent the native side
+     used (ACTION_DIAL), success/failure and any error text. Guarded and
+     non-throwing so logging never breaks dialing. Secrets are not involved. */
+  function _logCall(rawText, ok) {
+    try {
+      if (window.MayraDebug && window.MayraDebug.log) {
+        window.MayraDebug.log({
+          tag: 'CALL',
+          path: 'n/a',
+          status: ok ? 'ok' : 'failed',
+          ok: !!ok,
+          rawText: rawText
+        });
+      }
+    } catch (_) { /* logging must never break the call flow */ }
+  }
+
   async function makeCall(phoneNumber) {
     const cleaned = phoneNumber.replace(/\D/g, '');
+    const native = isNative();
     const bridge = _native();
 
     if (bridge) {
       try {
-        await bridge.makeCall({ phoneNumber: cleaned });
-        return { success: true };
+        const result = (await bridge.makeCall({ phoneNumber: cleaned })) || {};
+        const usedIntent = result.intent || 'ACTION_DIAL';
+        const ok = result.success !== false; // treat missing success as ok (back-compat)
+        _logCall(
+          `makeCall number=${cleaned}, native=${native}, intent=${usedIntent}, `
+          + `success=${ok}` + (result.error ? `, error=${result.error}` : ''),
+          ok
+        );
+        if (ok) return { success: true, intent: usedIntent };
+        /* Native reported a failure: surface it, then fall through to tel:. */
+        return { success: false, intent: usedIntent, error: result.error };
       } catch (e) {
+        const errText = (e && (e.message || String(e))) || 'bridge_threw';
+        _logCall(`makeCall number=${cleaned}, native=${native}, bridge threw: ${errText}, falling back to tel:`, false);
         console.warn('[Bridge] makeCall failed, falling back:', e);
       }
     }
 
     /* tel: fallback — opens dialer pre-filled */
+    _logCall(`makeCall number=${cleaned}, native=${native}, browser fallback path (window.location.href='tel:')`, true);
     window.location.href = `tel:+${cleaned}`;
     return { success: true, method: 'tel_link' };
   }
 
   /* ── callContact ──────────────────────────────────────── */
   async function callContact(contactName) {
+    const native = isNative();
     const bridge = _native();
     if (!bridge) {
+      _logCall(`callContact name="${contactName}", native=${native}, unavailable in browser`, false);
       return { success: false, reason: 'contacts_unavailable_in_browser' };
     }
 
     try {
       const result = await bridge.callContact({ name: contactName });
       const matches = result.matches || [];
+      const perm = result.permission || 'granted';
       // Native crash-proof result: contacts permission was denied.
       if (result.permission === 'denied') {
+        _logCall(`callContact name="${contactName}", native=${native}, permission=denied (contacts blocked)`, false);
         return { success: false, reason: 'permission_denied' };
       }
       if (matches.length === 0) {
         // Empty either because the contact truly isn't there, or a soft
         // native error occurred (result.error). Treat both as "no match"
         // so Mayra never surfaces a raw error string.
+        _logCall(
+          `callContact name="${contactName}", native=${native}, permission=${perm}, matches=0, dialed=false`
+          + (result.error ? `, error=${result.error}` : ''),
+          false
+        );
         return { success: false, reason: 'no_match' };
       }
       if (matches.length > 1) {
+        _logCall(`callContact name="${contactName}", native=${native}, permission=${perm}, matches=${matches.length}, dialed=false (multiple matches)`, false);
         return { success: false, reason: 'multiple_matches', matches };
       }
+      _logCall(`callContact name="${contactName}", native=${native}, permission=${perm}, matches=1, dialed=true (intent=ACTION_DIAL)`, true);
       return { success: true, calledNumber: result.calledNumber };
     } catch (e) {
       // Bridge itself failed — degrade gracefully, no raw error to the user.
+      const errText = (e && (e.message || String(e))) || 'bridge_threw';
+      _logCall(`callContact name="${contactName}", native=${native}, bridge threw: ${errText}`, false);
       return { success: false, reason: 'no_match' };
     }
   }

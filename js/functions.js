@@ -98,6 +98,21 @@ const MayraFunctions = (() => {
         const num = (args.phoneNumber || '').replace(/\D/g, '');
         if (!num) return { ok: false, message: 'Phone number nahi mila.' };
         const r = await AndroidBridge.makeCall(num);
+        /* DIAGNOSTICS: log the outcome as seen at the functions layer. */
+        try {
+          if (window.MayraDebug && window.MayraDebug.log) {
+            window.MayraDebug.log({
+              tag: 'CALL',
+              path: 'n/a',
+              status: r && r.success ? 'ok' : 'failed',
+              ok: !!(r && r.success),
+              rawText: `functions.makeCall number=${num}, native=${AndroidBridge.isNative()}, `
+                + `intent=${(r && r.intent) || 'n/a'}, success=${!!(r && r.success)}`
+                + (r && r.error ? `, error=${r.error}` : '')
+                + (r && r.method ? `, method=${r.method}` : '')
+            });
+          }
+        } catch (_) {}
         if (r.success) return { ok: true, message: `${num} par call kar rahi hoon...` };
         return { ok: false, message: 'Call nahi laga paya.' };
       }

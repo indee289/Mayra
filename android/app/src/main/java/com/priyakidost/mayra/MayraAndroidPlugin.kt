@@ -99,14 +99,31 @@ class MayraAndroidPlugin : Plugin() {
             call.resolve(JSObject().put("success", false).put("error", "no_activity"))
             return
         }
+        // ACTION_DIAL only OPENS the dialer prefilled (no CALL_PHONE permission,
+        // no auto-dial). This is intentional and safe. We additionally report
+        // WHICH intent was used and the resolved tel: URI so the on-screen
+        // debug panel can show exactly what happened (DIAGNOSTICS).
+        val telUri = "tel:+$number"
         try {
             // Use ACTION_DIAL (no CALL_PHONE permission needed)
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+$number"))
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse(telUri))
             act.startActivity(intent)
-            call.resolve(JSObject().put("success", true))
+            call.resolve(
+                JSObject()
+                    .put("success", true)
+                    .put("intent", "ACTION_DIAL")
+                    .put("uri", telUri)
+            )
         } catch (e: Exception) {
             // ActivityNotFoundException / SecurityException / anything else — resolve safely.
-            call.resolve(JSObject().put("success", false).put("error", e.message ?: "dial_failed"))
+            // Surface the exception CLASS + message so the failure reason is visible.
+            call.resolve(
+                JSObject()
+                    .put("success", false)
+                    .put("intent", "ACTION_DIAL")
+                    .put("uri", telUri)
+                    .put("error", "${e.javaClass.simpleName}: ${e.message ?: "dial_failed"}")
+            )
         }
     }
 
@@ -194,8 +211,9 @@ class MayraAndroidPlugin : Plugin() {
             call.resolve(result)
         } catch (e: Exception) {
             // SecurityException, ActivityNotFoundException, cursor issues, etc.
+            // Surface the exception CLASS + message for the debug panel.
             result.put("matches", matchArray)
-            result.put("error", e.message ?: "contacts_failed")
+            result.put("error", "${e.javaClass.simpleName}: ${e.message ?: "contacts_failed"}")
             call.resolve(result)
         }
     }

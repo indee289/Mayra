@@ -34,6 +34,31 @@ const GeminiVoice = (() => {
   let _onErrorCb     = null;
   let _apiKey        = null;
 
+  /* ── Voice timing/diagnostics state (DIAGNOSTICS ONLY) ──
+     Timestamps (ms, via _now()) captured at key lifecycle moments so the
+     on-screen debug panel can show WHERE any delay happens. None of these
+     affect voice behaviour; they only feed rawText strings in _debugVoice. */
+  let _tOpen          = 0;   // WebSocket 'open'
+  let _tSetupComplete = 0;   // setupComplete received
+  let _tTurnStart     = 0;   // start of the current model turn (reset each turn)
+  let _tFirstAudio    = 0;   // first audio chunk timestamp of the current turn
+  let _firstAudioSeen = false; // whether first audio chunk of the current turn was logged
+
+  function _now() {
+    try {
+      if (window.performance && typeof window.performance.now === 'function') {
+        return window.performance.now();
+      }
+    } catch (_) {}
+    return Date.now();
+  }
+
+  /* Round a ms delta for readable log strings. */
+  function _ms(a, b) {
+    if (!a || !b) return 'n/a';
+    return Math.round(b - a) + 'ms';
+  }
+
   /* Callbacks */
   function onStatus(cb)       { _onStatusCb = cb; }
   function onTranscript(cb)   { _onTranscriptCb = cb; }
@@ -82,6 +107,11 @@ const GeminiVoice = (() => {
     _debugVoice('connecting', { rawText: `WebSocket created, readyState=${_ws.readyState}` });
 
     _ws.onopen = () => {
+      _tOpen = _now();
+      _tSetupComplete = 0;
+      _tTurnStart = 0;
+      _tFirstAudio = 0;
+      _firstAudioSeen = false;
       _debugVoice('open', { rawText: `WebSocket open, readyState=${_ws && _ws.readyState}` });
       /* Send session setup */
       _ws.send(JSON.stringify({
@@ -155,6 +185,11 @@ const GeminiVoice = (() => {
     /* Session ready */
     if (msg.setupComplete) {
       _sessionActive = true;
+      _tSetupComplete = _now();
+      _debugVoice('setup-complete', {
+        ok: true,
+        rawText: `Setup complete, mic starting (open\u2192setup ${_ms(_tOpen, _tSetupComplete)})`
+      });
       _emit('status', { state: 'ready' });
       _startMicCapture();
       return;
@@ -166,15 +201,31 @@ const GeminiVoice = (() => {
 
       if (sc.interrupted) {
         _interrupted = true;
+        _debugVoice('interrupted', {
+          ok: true,
+          rawText: 'Model turn interrupted by user, playback stopped'
+        });
         _stopPlayback();
         _emit('status', { state: 'listening' });
         return;
       }
 
       if (sc.modelTurn?.parts) {
+        /* Mark the start of this model turn the first time we see any model
+           content for it, so first-audio delay can be measured. */
+        if (!_tTurnStart) _tTurnStart = _now();
         for (const part of sc.modelTurn.parts) {
           /* Audio output */
           if (part.inlineData?.mimeType?.includes('audio')) {
+            /* Log only the FIRST audio chunk of this turn (avoid flooding). */
+            if (!_firstAudioSeen) {
+              _firstAudioSeen = true;
+              _tFirstAudio = _now();
+              _debugVoice('model-audio', {
+                ok: true,
+                rawText: `First audio chunk received, ms since turn start=${_ms(_tTurnStart, _tFirstAudio)}`
+              });
+            }
             const pcm = _base64ToPCM(part.inlineData.data);
             _queueAudio(pcm);
           }
@@ -186,6 +237,14 @@ const GeminiVoice = (() => {
       }
 
       if (sc.turnComplete) {
+        _debugVoice('turn-complete', {
+          ok: true,
+          rawText: `Model turn complete (turnStart\u2192firstAudio ${_ms(_tTurnStart, _tFirstAudio)}, turnStart\u2192complete ${_ms(_tTurnStart, _now())})`
+        });
+        /* Reset per-turn timing so the next turn measures fresh. */
+        _tTurnStart = 0;
+        _tFirstAudio = 0;
+        _firstAudioSeen = false;
         _emit('status', { state: 'listening' });
         _interrupted = false;
       }
@@ -194,6 +253,16 @@ const GeminiVoice = (() => {
     /* Tool / function call */
     if (msg.toolCall) {
       _stopPlayback();
+      /* Log function NAME(s) only — never args (may contain PII). */
+      try {
+        const names = (msg.toolCall.functionCalls || [])
+          .map((fc) => fc && fc.name ? fc.name : '(unnamed)')
+          .join(', ');
+        _debugVoice('tool-call', {
+          ok: true,
+          rawText: `Tool call: ${names || '(none)'}`
+        });
+      } catch (_) {}
       for (const fc of msg.toolCall.functionCalls || []) {
         _emit('function_call', { name: fc.name, args: fc.args, callId: fc.id });
       }
