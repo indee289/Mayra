@@ -25,7 +25,8 @@ const GeminiVoice = (() => {
   let _processor     = null;
   let _mediaStream   = null;
   let _playQueue     = [];
-  let _playing       = false;
+  let _playing       = false;   // SINGLE-FLIGHT guard: true iff a drainer is running
+  let _starting      = false;   // true while start() is opening a socket (idempotency)
   let _sessionActive = false;
   let _interrupted   = false;
   let _onStatusCb    = null;
@@ -93,7 +94,25 @@ const GeminiVoice = (() => {
 
   /* ── Session Setup ── */
   async function start(apiKey, systemInstruction) {
-    if (_sessionActive) return;
+    /* IDEMPOTENCY: never open a 2nd Live connection. Bail out if a session
+       is already active, if a socket is already open/opening, or if a
+       previous start() is still mid-connect. A 2nd concurrent Live stream
+       is the classic cause of double/overlapping audio, so refuse it here. */
+    if (_sessionActive || _starting) {
+      _debugVoice('start-ignored', {
+        ok: true,
+        rawText: `start() ignored: sessionActive=${_sessionActive}, starting=${_starting}, wsState=${_ws ? _ws.readyState : 'null'}`
+      });
+      return;
+    }
+    if (_ws && _ws.readyState <= WebSocket.OPEN) {
+      _debugVoice('start-ignored', {
+        ok: true,
+        rawText: `start() ignored: existing WebSocket still open/connecting (readyState=${_ws.readyState})`
+      });
+      return;
+    }
+    _starting = true;
     _apiKey = apiKey;
 
     _emit('status', { state: 'connecting' });
@@ -186,6 +205,7 @@ const GeminiVoice = (() => {
     /* Session ready */
     if (msg.setupComplete) {
       _sessionActive = true;
+      _starting = false;
       _tSetupComplete = _now();
       _debugVoice('setup-complete', {
         ok: true,
@@ -377,18 +397,35 @@ const GeminiVoice = (() => {
     }));
   }
 
-  /* ── Audio Playback Queue ── */
+  /* ── Audio Playback Queue ──
+     SINGLE-FLIGHT model: at most ONE _drainQueue loop ("the drainer") is
+     ever running. _queueAudio only enqueues and, if no drainer is running,
+     (re)starts exactly one. _playing is the running-guard and is set
+     SYNCHRONOUSLY before any await, so a burst of _queueAudio calls (or a
+     yield inside the first drainer) can never spin up a 2nd concurrent
+     drainer that would pull the same queue and start overlapping sources.
+     _drainToken is bumped on stop/interrupt/cleanup so an in-flight drainer
+     that resumes after an await notices it is stale and exits without
+     starting more sources. */
   let _playbackCtx = null;
+  let _drainToken  = 0;   // bumped to invalidate the currently-running drainer
 
   function _queueAudio(arrayBufferOrPCM) {
     _playQueue.push(arrayBufferOrPCM);
+    /* Start the single drainer ONLY if one isn't already running. The
+       _playing guard is set synchronously inside _drainQueue before its
+       first await, so two _queueAudio calls in the same tick can't both
+       pass this check and launch parallel drainers. */
     if (!_playing) _drainQueue();
     _emit('status', { state: 'speaking' });
   }
 
   async function _drainQueue() {
-    if (_playing || _playQueue.length === 0) return;
+    /* SINGLE-FLIGHT guard, set synchronously BEFORE any await so no second
+       drainer can start while this one is between awaits. */
+    if (_playing) return;
     _playing = true;
+    const myToken = ++_drainToken;   // this drainer owns audio for this token
 
     if (!_playbackCtx || _playbackCtx.state === 'closed') {
       _playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: OUT_RATE });
@@ -401,16 +438,22 @@ const GeminiVoice = (() => {
     if (_playbackCtx.state === 'suspended') {
       try { await _playbackCtx.resume(); } catch (_) { /* ignore, best effort */ }
     }
-    _debugVoice('playback-context-state', {
+    /* After the resume() await we may be stale (stop/interrupt bumped the
+       token). If so, release cleanly and let the owning path take over. */
+    if (myToken !== _drainToken) { _playing = false; return; }
+
+    _debugVoice('drain-start', {
       ok: _playbackCtx.state === 'running',
-      rawText: `_drainQueue start: playbackCtx.state=${_playbackCtx.state}, queued=${_playQueue.length}`
+      rawText: `drain-start: token=${myToken}, playbackCtx.state=${_playbackCtx.state}, queued=${_playQueue.length}`
     });
 
-    while (_playQueue.length > 0 && !_interrupted) {
+    while (_playQueue.length > 0 && !_interrupted && myToken === _drainToken) {
       const raw = _playQueue.shift();
       try {
         const buffer = await _decodePCM(raw, _playbackCtx);
         if (!buffer) continue;
+        /* Re-check staleness after the decode await before starting a source. */
+        if (myToken !== _drainToken || _interrupted) break;
 
         await new Promise((resolve) => {
           const src = _playbackCtx.createBufferSource();
@@ -424,28 +467,46 @@ const GeminiVoice = (() => {
       }
     }
 
-    _playing = false;
-    /* Playback fully drained. Return to a clean listening state and make sure
-       a stale interruption can NEVER permanently gate the mic: if the queue
-       emptied on its own, clear _interrupted so onaudioprocess resumes
-       streaming even if a matching turnComplete never arrives (e.g. after an
-       interruption or a tool call that didn't emit its own turnComplete). */
-    if (_playQueue.length === 0) {
-      if (_interrupted) {
-        _interrupted = false;
-        _micResumeLogPending = true;
-        _debugVoice('interrupted-cleared', {
-          ok: true,
-          rawText: 'Playback drained: cleared stale _interrupted, mic gating released'
-        });
+    /* Release the running-guard ATOMICALLY so the NEXT turn starts a fresh
+       single drainer. Only the drainer that still owns the token clears the
+       flag — a stale drainer must not stomp a newer one's state. */
+    if (myToken === _drainToken) {
+      _playing = false;
+      _debugVoice('drain-end', {
+        ok: true,
+        rawText: `drain-end: token=${myToken}, queued=${_playQueue.length}, interrupted=${_interrupted}`
+      });
+      /* Playback fully drained. Return to a clean listening state and make
+         sure a stale interruption can NEVER permanently gate the mic: if the
+         queue emptied on its own, clear _interrupted so onaudioprocess
+         resumes streaming even if a matching turnComplete never arrives. */
+      if (_playQueue.length === 0) {
+        if (_interrupted) {
+          _interrupted = false;
+          _micResumeLogPending = true;
+          _debugVoice('interrupted-cleared', {
+            ok: true,
+            rawText: 'Playback drained: cleared stale _interrupted, mic gating released'
+          });
+        }
+        _emit('status', { state: 'listening' });
+      } else {
+        /* New chunks arrived exactly as we were ending; keep single-flight by
+           relaunching one drainer for them. */
+        _drainQueue();
       }
-      _emit('status', { state: 'listening' });
+    } else {
+      _debugVoice('drain-end', {
+        ok: true,
+        rawText: `drain-end (stale token=${myToken}, current=${_drainToken}): exiting without touching state`
+      });
     }
   }
 
   function _stopPlayback() {
     _playQueue = [];
     _playing   = false;
+    _drainToken++;   // invalidate any running drainer so it can't start more sources
     try { _playbackCtx?.suspend(); } catch {}
   }
 
@@ -462,6 +523,10 @@ const GeminiVoice = (() => {
   /* ── Session teardown ── */
   function stop() {
     _sessionActive = false;
+    _starting = false;
+    /* Detach handlers before closing so a late close/error from THIS socket
+       can't fire _cleanupSession and race a fresh start(). */
+    if (_ws) { try { _ws.onopen = _ws.onmessage = _ws.onerror = _ws.onclose = null; } catch {} }
     _stopPlayback();
     if (_processor) { try { _processor.disconnect(); } catch {} }
     if (_sourceNode) { try { _sourceNode.disconnect(); } catch {} }
@@ -474,8 +539,11 @@ const GeminiVoice = (() => {
 
   function _cleanupSession() {
     _sessionActive = false;
-    _playing = false;
-    _playQueue = [];
+    _starting = false;
+    /* Flush any in-flight playback so a stale drainer/queue can never bleed
+       audio into a subsequent (re)connection. */
+    _stopPlayback();
+    _drainToken++;   // invalidate any running drainer belonging to this session
   }
 
   function isActive() { return _sessionActive; }
