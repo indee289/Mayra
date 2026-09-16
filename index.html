@@ -167,30 +167,12 @@
         <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
       </div>
 
-      <!-- Slide: Contacts Permission -->
-      <div class="onboard-slide" data-slide="contacts">
-        <div class="onboard-icon"><svg class="isax"><use href="#isax-call"/></svg></div>
-        <h2>Contacts access</h2>
-        <p>Taaki jab aap kahen "Mom ko call karo",<br>Mayra sahi contact dhoondh sake.</p>
-        <button class="btn-primary" onclick="App.requestContactsPermission()">Contacts allow karein</button>
-        <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
-      </div>
-
       <!-- Slide: Location Permission -->
       <div class="onboard-slide" data-slide="location">
         <div class="onboard-icon"><svg class="isax"><use href="#isax-location"/></svg></div>
         <h2>Location access</h2>
         <p>Taaki jab aap poochho "yahaan aas-paas kya hai",<br>Mayra sahi jagah bata sake.</p>
         <button class="btn-primary" onclick="App.requestLocationPermission()">Allow location</button>
-        <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
-      </div>
-
-      <!-- Slide: Accessibility Permission -->
-      <div class="onboard-slide" data-slide="accessibility">
-        <div class="onboard-icon"><svg class="isax"><use href="#isax-security-safe"/></svg></div>
-        <h2>Accessibility access</h2>
-        <p>Isse Mayra doosri apps mein bhi tumhari help kar sakti hai —<br>jaise tap ya scroll karke kaam aasaan banana. Yeh tumhare device par hi rehta hai.</p>
-        <button class="btn-primary" onclick="App.openAccessibilitySettings()">Enable karein</button>
         <button class="btn-ghost" onclick="App.onboardNext()">Abhi nahi</button>
       </div>
 
@@ -329,24 +311,6 @@
         </div>
       </div>
 
-      <!-- ── WELLNESS TAB ── -->
-      <div class="tab-view" id="tab-wellness">
-        <div class="coming-soon-view">
-          <div class="cs-icon"><svg class="isax"><use href="#isax-heart"/></svg></div>
-          <h3>Wellness</h3>
-          <p>Mood tracking, journaling, aur relaxation exercises — jaldi aa rahe hain!</p>
-        </div>
-      </div>
-
-      <!-- ── DISCOVER TAB ── -->
-      <div class="tab-view" id="tab-discover">
-        <div class="coming-soon-view">
-          <div class="cs-icon"><svg class="isax"><use href="#isax-discover"/></svg></div>
-          <h3>Discover</h3>
-          <p>Kahaniyaan, tips aur naye features — jaldi aa rahe hain!</p>
-        </div>
-      </div>
-
       <!-- ── PROFILE TAB ── -->
       <div class="tab-view" id="tab-profile">
         <div class="profile-view">
@@ -377,14 +341,6 @@
       <button class="nav-item active" data-tab="home" onclick="App.switchTab('home')">
         <svg class="isax"><use href="#isax-home-2"/></svg>
         <span>Home</span>
-      </button>
-      <button class="nav-item" data-tab="wellness" onclick="App.switchTab('wellness')">
-        <svg class="isax"><use href="#isax-heart"/></svg>
-        <span>Wellness</span>
-      </button>
-      <button class="nav-item" data-tab="discover" onclick="App.switchTab('discover')">
-        <svg class="isax"><use href="#isax-discover"/></svg>
-        <span>Discover</span>
       </button>
       <button class="nav-item" data-tab="profile" onclick="App.switchTab('profile')">
         <svg class="isax"><use href="#isax-user"/></svg>
@@ -458,32 +414,13 @@
           </span>
         </div>
         <div class="permission-item">
-          <span><svg class="isax"><use href="#isax-call"/></svg> Contacts</span>
-          <span class="perm-actions">
-            <span class="perm-status" id="perm-contacts">Checking...</span>
-            <button class="perm-action" onclick="App.requestPermissionFromSettings('contacts')">Allow karo</button>
-          </span>
-        </div>
-        <div class="permission-item">
           <span><svg class="isax"><use href="#isax-location"/></svg> Location</span>
           <span class="perm-actions">
             <span class="perm-status" id="perm-location">Checking...</span>
             <button class="perm-action" onclick="App.requestPermissionFromSettings('location')">Allow karo</button>
           </span>
         </div>
-        <div class="permission-item">
-          <span><svg class="isax"><use href="#isax-security-safe"/></svg> Accessibility</span>
-          <span class="perm-actions">
-            <span class="perm-status" id="perm-accessibility">Checking...</span>
-            <button class="perm-action" onclick="App.openAccessibilitySettings()">Enable karo</button>
-          </span>
-        </div>
         <button class="btn-ghost small" onclick="App.openSystemSettings()">System settings mein jaao</button>
-      </section>
-
-      <section class="settings-section">
-        <h4 class="settings-section-title">ℹ️ About</h4>
-        <p class="settings-hint">Priya ki Dost — Version 2.0<br>Powered by Gemini Live<br>Made with ❤️ for India</p>
       </section>
 
     </div>

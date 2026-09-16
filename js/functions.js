@@ -51,20 +51,6 @@ const MayraFunctions = (() => {
         },
         required: ['phoneNumber']
       }
-    },
-    {
-      name: 'callContact',
-      description: 'Calls a contact by name from the device contacts. Use when user says "Mom ko call karo", "Call Rahul", "Mummy ko phone lagao".',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          contactName: {
-            type: 'STRING',
-            description: 'The name of the contact as the user referred to them (e.g. "Mom", "Rahul", "Mummy").'
-          }
-        },
-        required: ['contactName']
-      }
     }
   ];
 
@@ -117,24 +103,6 @@ const MayraFunctions = (() => {
         return { ok: false, message: 'Call nahi laga paya.' };
       }
 
-      case 'callContact': {
-        const name = args.contactName;
-        if (!name) return { ok: false, message: 'Contact ka naam nahi mila.' };
-        if (!AndroidBridge.isNative()) {
-          return {
-            ok: false,
-            reason: 'contacts_unavailable_in_browser',
-            message: 'Contacts access abhi browser mein possible nahi — app install karo phir hoga.'
-          };
-        }
-        const r = await AndroidBridge.callContact(name);
-        if (r.success)            return { ok: true, message: `${name} ko call kar rahi hoon...` };
-        if (r.reason === 'permission_denied') return { ok: false, reason: 'permission_denied' };
-        if (r.reason === 'multiple_matches') return { ok: false, reason: 'multiple', matches: r.matches };
-        if (r.reason === 'no_match') return { ok: false, reason: 'no_match', message: `"${name}" contacts mein nahi mila.` };
-        return { ok: false, message: 'Call nahi laga paya.' };
-      }
-
       default:
         return { ok: false, message: `Unknown function: ${toolName}` };
     }
@@ -148,23 +116,9 @@ const MayraFunctions = (() => {
         openApp:      `${args.appName || 'app'} khol diya! ✅`,
         openUrl:      'Link khol diya! ✅',
         makeCall:     `${args.phoneNumber} par call laga rahi hoon...`,
-        callContact:  `${args.contactName} ko call kar rahi hoon...`,
       };
       return msgs[toolName] || 'Kaam ho gaya! ✅';
     } else {
-      if (result.reason === 'multiple') {
-        const names = (result.matches || []).map(m => m.name || m).join(', ');
-        return `Mere paas ${args.contactName} ke do contacts hain: ${names} — kaunsa wala call karoon?`;
-      }
-      if (result.reason === 'permission_denied') {
-        return `Contacts dekhne ki permission nahi mili abhi, meri jaan. Ek baar contacts ki permission "Allow" kar do, phir main ${args.contactName} ko turant call laga dungi. 💛`;
-      }
-      if (result.reason === 'no_match') {
-        return `"${args.contactName}" mujhe contacts mein nahi mila. Naam ek baar check karein?`;
-      }
-      if (result.reason === 'contacts_unavailable_in_browser') {
-        return `Contacts access ke liye app chahiye — abhi browser mein yeh possible nahi, sorry yaar.`;
-      }
       return result.message || 'Yeh kaam nahi ho paya, sorry.';
     }
   }

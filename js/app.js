@@ -50,7 +50,7 @@ const App = (() => {
   let _toastTimer    = null;
   let _lastMayraMsg  = '';
 
-  const ONBOARD_SLIDES = ['welcome', 'apikey', 'mic', 'contacts', 'location', 'accessibility', 'done'];
+  const ONBOARD_SLIDES = ['welcome', 'apikey', 'mic', 'location', 'done'];
   let _onboardIdx = 0;
 
   /* ════════════════════════════════════════════════════
@@ -344,13 +344,6 @@ const App = (() => {
     onboardNext();
   }
 
-  async function requestContactsPermission() {
-    const granted = await AndroidBridge.requestPermission('contacts');
-    Storage.setPermission('contacts', granted ? 'granted' : 'denied');
-    showToast(granted ? '📞 Contacts allow ho gaya!' : 'Contacts baad mein Settings mein allow kar sakte ho.');
-    onboardNext();
-  }
-
   async function requestLocationPermission() {
     const granted = await AndroidBridge.requestPermission('location');
     Storage.setPermission('location', granted ? 'granted' : 'denied');
@@ -359,25 +352,17 @@ const App = (() => {
   }
 
   /* Per-item Allow button in Settings.
-     `name` is a JS bridge name: 'microphone' | 'contacts' | 'location'.
+     `name` is a JS bridge name: 'microphone' | 'location'.
      Storage uses 'mic' for the microphone slot, so map that one. */
   async function requestPermissionFromSettings(name) {
     const granted = await AndroidBridge.requestPermission(name);
     const storageKey = name === 'microphone' ? 'mic' : name;
     Storage.setPermission(storageKey, granted ? 'granted' : 'denied');
-    const labels = { microphone: 'Microphone', contacts: 'Contacts', location: 'Location' };
+    const labels = { microphone: 'Microphone', location: 'Location' };
     const label = labels[name] || 'Permission';
     showToast(granted
       ? `✅ ${label} allow ho gaya!`
       : `${label} nahi mila — device Settings mein manually allow karo, meri jaan.`);
-    _updatePermissionStatus();
-  }
-
-  /* Accessibility can't be toggled programmatically — deep-link the user to
-     the system Accessibility list and warmly guide them. */
-  async function openAccessibilitySettings() {
-    await AndroidBridge.openAccessibilitySettings();
-    showToast('Accessibility list mein Mayra ko on kar do, phir main aur bhi help kar paungi ❤️');
     _updatePermissionStatus();
   }
 
@@ -766,9 +751,7 @@ const App = (() => {
 
   async function _updatePermissionStatus() {
     const micEl      = document.getElementById('perm-mic');
-    const contactsEl = document.getElementById('perm-contacts');
     const locationEl = document.getElementById('perm-location');
-    const accessEl   = document.getElementById('perm-accessibility');
 
     if (micEl) {
       /* Prefer live native state; fall back to persisted (storage key is 'mic'). */
@@ -777,24 +760,11 @@ const App = (() => {
       micEl.textContent = _permLabel(micState);
       micEl.className   = `perm-status ${_permClass(micState)}`;
     }
-    if (contactsEl) {
-      /* Prefer live native state; fall back to what we persisted. */
-      let state = await AndroidBridge.checkPermission('contacts');
-      if (state === 'unknown') state = Storage.getPermission('contacts');
-      contactsEl.textContent = _permLabel(state);
-      contactsEl.className   = `perm-status ${_permClass(state)}`;
-    }
     if (locationEl) {
       let state = await AndroidBridge.checkPermission('location');
       if (state === 'unknown') state = Storage.getPermission('location');
       locationEl.textContent = _permLabel(state);
       locationEl.className   = `perm-status ${_permClass(state)}`;
-    }
-    if (accessEl) {
-      const enabled = await AndroidBridge.isAccessibilityEnabled();
-      const state = enabled ? 'granted' : Storage.getPermission('accessibility');
-      accessEl.textContent = _permLabel(state);
-      accessEl.className   = `perm-status ${_permClass(state)}`;
     }
   }
 
@@ -894,8 +864,8 @@ const App = (() => {
     showScreen, hideScreen,
     /* Onboarding */
     onboardNext, validateAndSaveApiKey, onProviderChange, skipApiKey,
-    requestMicPermission, requestContactsPermission, requestLocationPermission,
-    requestPermissionFromSettings, openAccessibilitySettings, finishOnboarding,
+    requestMicPermission, requestLocationPermission,
+    requestPermissionFromSettings, finishOnboarding,
     /* Nav */
     switchTab, setMode, goBackHome,
     /* Voice */

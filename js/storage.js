@@ -13,9 +13,7 @@ const Storage = (() => {
     CHAT_COUNT:     'mayra_chat_count',
     INSTALL_DATE:   'mayra_install_date',
     PERM_MIC:            'mayra_perm_mic',
-    PERM_CONTACTS:       'mayra_perm_contacts',
     PERM_LOCATION:       'mayra_perm_location',
-    PERM_ACCESSIBILITY:  'mayra_perm_accessibility',
   };
 
   /* Supported providers and their per-provider key slots. */
@@ -29,9 +27,7 @@ const Storage = (() => {
   /* Permission name -> storage key map (generalized, no hardcoded ternary). */
   const PERM_KEYS = {
     mic:           KEYS.PERM_MIC,
-    contacts:      KEYS.PERM_CONTACTS,
     location:      KEYS.PERM_LOCATION,
-    accessibility: KEYS.PERM_ACCESSIBILITY,
   };
 
   /* ── Simple XOR obfuscation — not true encryption but prevents

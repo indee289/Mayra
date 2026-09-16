@@ -7,7 +7,7 @@
      - 'openai' : OpenAI chat/completions.
    Shares session history context with voice where possible.
 
-   LIMITATION: Function-calling / device actions (openApp, callContact,
+   LIMITATION: Function-calling / device actions (openApp, makeCall,
    etc.) are Gemini-ONLY. Groq and OpenAI return text-only replies —
    they do NOT execute tool calls. Voice is also Gemini-only (gated in
    app.js _startVoice). MAYRA_SYSTEM_PROMPT is reused as the system

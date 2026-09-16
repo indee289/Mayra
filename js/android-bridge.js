@@ -137,49 +137,6 @@ const AndroidBridge = (() => {
     return { success: true, method: 'tel_link' };
   }
 
-  /* ── callContact ──────────────────────────────────────── */
-  async function callContact(contactName) {
-    const native = isNative();
-    const bridge = _native();
-    if (!bridge) {
-      _logCall(`callContact name="${contactName}", native=${native}, unavailable in browser`, false);
-      return { success: false, reason: 'contacts_unavailable_in_browser' };
-    }
-
-    try {
-      const result = await bridge.callContact({ name: contactName });
-      const matches = result.matches || [];
-      const perm = result.permission || 'granted';
-      // Native crash-proof result: contacts permission was denied.
-      if (result.permission === 'denied') {
-        _logCall(`callContact name="${contactName}", native=${native}, permission=denied (contacts blocked)`, false);
-        return { success: false, reason: 'permission_denied' };
-      }
-      if (matches.length === 0) {
-        // Empty either because the contact truly isn't there, or a soft
-        // native error occurred (result.error). Treat both as "no match"
-        // so Mayra never surfaces a raw error string.
-        _logCall(
-          `callContact name="${contactName}", native=${native}, permission=${perm}, matches=0, dialed=false`
-          + (result.error ? `, error=${result.error}` : ''),
-          false
-        );
-        return { success: false, reason: 'no_match' };
-      }
-      if (matches.length > 1) {
-        _logCall(`callContact name="${contactName}", native=${native}, permission=${perm}, matches=${matches.length}, dialed=false (multiple matches)`, false);
-        return { success: false, reason: 'multiple_matches', matches };
-      }
-      _logCall(`callContact name="${contactName}", native=${native}, permission=${perm}, matches=1, dialed=true (intent=ACTION_DIAL)`, true);
-      return { success: true, calledNumber: result.calledNumber };
-    } catch (e) {
-      // Bridge itself failed — degrade gracefully, no raw error to the user.
-      const errText = (e && (e.message || String(e))) || 'bridge_threw';
-      _logCall(`callContact name="${contactName}", native=${native}, bridge threw: ${errText}`, false);
-      return { success: false, reason: 'no_match' };
-    }
-  }
-
   /* ── requestPermission ────────────────────────────────── */
   async function requestPermission(permName) {
     const bridge = _native();
@@ -211,7 +168,6 @@ const AndroidBridge = (() => {
       }
       return false;
     }
-    /* Contacts + accessibility not accessible on web */
     return false;
   }
 
@@ -238,30 +194,7 @@ const AndroidBridge = (() => {
         return status.state; // 'granted' | 'denied' | 'prompt'
       } catch { return 'unknown'; }
     }
-    /* Contacts + accessibility have no web equivalent */
     return 'unknown';
-  }
-
-  /* ── openAccessibilitySettings ────────────────────────── */
-  async function openAccessibilitySettings() {
-    const bridge = _native();
-    if (bridge) {
-      try { await bridge.openAccessibilitySettings(); return { success: true }; } catch {}
-    }
-    App.showToast('Accessibility toh device ki Settings mein jaake khud se on karna padega, meri jaan.');
-    return { success: false, reason: 'unavailable_on_web' };
-  }
-
-  /* ── isAccessibilityEnabled ───────────────────────────── */
-  async function isAccessibilityEnabled() {
-    const bridge = _native();
-    if (bridge) {
-      try {
-        const result = await bridge.isAccessibilityEnabled();
-        return !!result.enabled;
-      } catch {}
-    }
-    return false;
   }
 
   function openSystemSettings() {
@@ -294,11 +227,8 @@ const AndroidBridge = (() => {
     openWhatsApp,
     openUrl,
     makeCall,
-    callContact,
     requestPermission,
     checkPermission,
-    openAccessibilitySettings,
-    isAccessibilityEnabled,
     openSystemSettings,
   };
 })();
