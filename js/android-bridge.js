@@ -137,6 +137,96 @@ const AndroidBridge = (() => {
     return { success: true, method: 'tel_link' };
   }
 
+  /* ── callContact ──────────────────────────────────────── */
+  async function callContact(contactName) {
+    const native = isNative();
+    const bridge = _native();
+    if (!bridge) {
+      _logCall(`callContact name="${contactName}", native=${native}, unavailable in browser`, false);
+      return { success: false, reason: 'contacts_unavailable_in_browser' };
+    }
+
+    try {
+      const result = await bridge.callContact({ name: contactName });
+      const matches = result.matches || [];
+      const perm = result.permission || 'granted';
+      // Native crash-proof result: contacts permission was denied.
+      if (result.permission === 'denied') {
+        _logCall(`callContact name="${contactName}", native=${native}, permission=denied (contacts blocked)`, false);
+        return { success: false, reason: 'permission_denied' };
+      }
+      if (matches.length === 0) {
+        // Empty either because the contact truly isn't there, or a soft
+        // native error occurred (result.error). Treat both as "no match"
+        // so Mayra never surfaces a raw error string.
+        _logCall(
+          `callContact name="${contactName}", native=${native}, permission=${perm}, matches=0, dialed=false`
+          + (result.error ? `, error=${result.error}` : ''),
+          false
+        );
+        return { success: false, reason: 'no_match' };
+      }
+      if (matches.length > 1) {
+        _logCall(`callContact name="${contactName}", native=${native}, permission=${perm}, matches=${matches.length}, dialed=false (multiple matches)`, false);
+        return { success: false, reason: 'multiple_matches', matches };
+      }
+      _logCall(`callContact name="${contactName}", native=${native}, permission=${perm}, matches=1, dialed=true (intent=ACTION_DIAL)`, true);
+      return { success: true, calledNumber: result.calledNumber };
+    } catch (e) {
+      // Bridge itself failed — degrade gracefully, no raw error to the user.
+      const errText = (e && (e.message || String(e))) || 'bridge_threw';
+      _logCall(`callContact name="${contactName}", native=${native}, bridge threw: ${errText}`, false);
+      return { success: false, reason: 'no_match' };
+    }
+  }
+
+  /* ── sendWhatsAppMessage ──────────────────────────────── */
+  /* SAFE pre-fill only — opens the WhatsApp chat with the message typed;
+     the user taps Send themselves. Params: { contactName?, phoneNumber?, message }.
+     Returns { success, reason?, matches? }. Never auto-sends, never throws. */
+  async function sendWhatsAppMessage({ contactName, phoneNumber, message } = {}) {
+    const native = isNative();
+    const bridge = _native();
+    if (!bridge) {
+      _logCall(`sendWhatsAppMessage name="${contactName || ''}", native=${native}, unavailable in browser`, false);
+      return { success: false, reason: 'contacts_unavailable_in_browser' };
+    }
+    try {
+      const args = { message: message || '' };
+      if (phoneNumber) args.phoneNumber = String(phoneNumber);
+      else if (contactName) args.name = contactName;
+      const result = (await bridge.sendWhatsAppMessage(args)) || {};
+
+      if (result.success) {
+        _logCall(`sendWhatsAppMessage target="${phoneNumber || contactName}", native=${native}, prefilled=true (user taps Send)`, true);
+        return { success: true, name: result.name };
+      }
+      const reason = result.reason || 'failed';
+      if (reason === 'denied' || result.permission === 'denied') {
+        _logCall(`sendWhatsAppMessage name="${contactName}", native=${native}, permission=denied`, false);
+        return { success: false, reason: 'permission_denied' };
+      }
+      if (reason === 'ambiguous') {
+        _logCall(`sendWhatsAppMessage name="${contactName}", native=${native}, ambiguous matches=${(result.matches || []).length}`, false);
+        return { success: false, reason: 'multiple_matches', matches: result.matches || [] };
+      }
+      if (reason === 'no_match') {
+        _logCall(`sendWhatsAppMessage name="${contactName}", native=${native}, no_match`, false);
+        return { success: false, reason: 'no_match' };
+      }
+      if (reason === 'whatsapp_not_found') {
+        _logCall(`sendWhatsAppMessage target="${phoneNumber || contactName}", native=${native}, whatsapp_not_found`, false);
+        return { success: false, reason: 'whatsapp_not_found' };
+      }
+      _logCall(`sendWhatsAppMessage target="${phoneNumber || contactName}", native=${native}, reason=${reason}`, false);
+      return { success: false, reason };
+    } catch (e) {
+      const errText = (e && (e.message || String(e))) || 'bridge_threw';
+      _logCall(`sendWhatsAppMessage target="${phoneNumber || contactName}", native=${native}, bridge threw: ${errText}`, false);
+      return { success: false, reason: 'failed' };
+    }
+  }
+
   /* ── requestPermission ────────────────────────────────── */
   async function requestPermission(permName) {
     const bridge = _native();
@@ -291,6 +381,8 @@ const AndroidBridge = (() => {
     openWhatsApp,
     openUrl,
     makeCall,
+    callContact,
+    sendWhatsAppMessage,
     requestPermission,
     checkPermission,
     openSystemSettings,

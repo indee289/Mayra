@@ -89,6 +89,29 @@
       <path d="M12 13.43a3.12 3.12 0 1 0 0-6.24 3.12 3.12 0 0 0 0 6.24Z"/>
       <path d="M3.62 8.49c1.97-8.66 14.8-8.65 16.76.01 1.15 5.08-2.01 9.38-4.78 12.04a5.19 5.19 0 0 1-7.21 0c-2.76-2.66-5.92-6.97-4.77-12.05Z"/>
     </symbol>
+    <symbol id="isax-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 5.98c-3.33-.33-6.68-.5-10.02-.5-1.98 0-3.96.1-5.94.3L3 5.98"/>
+      <path d="M8.5 4.97 8.72 3.66c.16-.95.28-1.66 1.97-1.66h3.62c1.69 0 1.82.75 1.97 1.67l.22 1.3"/>
+      <path d="M18.85 9.14 18.2 19.21c-.11 1.57-.2 2.79-2.99 2.79H8.79c-2.79 0-2.88-1.22-2.99-2.79L5.15 9.14"/>
+      <path d="M10.33 16.5h3.33M9.5 12.5h5"/>
+    </symbol>
+    <symbol id="isax-notification" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 6.44v3.33"/>
+      <path d="M12.02 2c-3.31 0-6 2.69-6 6v1.89c0 .61-.26 1.54-.57 2.06L4.3 14.08c-.71 1.18-.22 2.49 1.08 2.93 4.31 1.44 8.97 1.44 13.28 0 1.21-.4 1.74-1.83 1.08-2.93l-1.15-2.13c-.3-.52-.56-1.45-.56-2.06V8c0-3.3-2.71-6-6.01-6Z"/>
+      <path d="M15.33 17.79c0 1.65-1.35 3-3 3-.82 0-1.58-.34-2.12-.88a3.01 3.01 0 0 1-.88-2.12"/>
+    </symbol>
+    <symbol id="isax-flash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 2 4.1 12.68c-.35.42-.52.63-.52.81 0 .35.29.63.63.63H12l-1 8 8.9-10.68c.35-.42.52-.63.52-.81 0-.35-.29-.63-.63-.63H12l1-8Z"/>
+    </symbol>
+    <symbol id="isax-global" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10Z"/>
+      <path d="M8 3h1a28.4 28.4 0 0 0 0 18H8M15 3a28.4 28.4 0 0 1 0 18"/>
+      <path d="M3 16v-1a28.4 28.4 0 0 0 18 0v1M3 9a28.4 28.4 0 0 1 18 0"/>
+    </symbol>
+    <symbol id="isax-info-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22c5.5 0 10-4.5 10-10S17.5 2 12 2 2 6.5 2 12s4.5 10 10 10Z"/>
+      <path d="M12 8h.01M12 11.5v5"/>
+    </symbol>
     <symbol id="isax-security-safe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M10.49 2.23 5.5 4.11c-1.15.43-2.09 1.79-2.09 3.02v7.41c0 1.18.78 2.74 1.73 3.45l4.3 3.21c1.41 1.06 3.73 1.06 5.14 0l4.3-3.21c.95-.71 1.73-2.27 1.73-3.45V7.13c0-1.23-.94-2.59-2.09-3.02l-4.99-1.88a4.13 4.13 0 0 0-2.84 0Z"/>
       <path d="m9.05 11.87 1.95 1.95 3.95-3.95"/>
@@ -379,6 +402,7 @@
         <p id="settings-api-status" class="api-status-msg"></p>
         <div class="settings-row">
           <button class="btn-primary small" onclick="App.validateAndSaveApiKey('settings')">Save</button>
+          <button class="btn-outline small" onclick="App.revalidateApiKey()">Re-check</button>
           <button class="btn-ghost small" onclick="App.clearApiKey()">Remove</button>
         </div>
         <p class="settings-hint">Tumhara key sirf tumhare device par secure store hota hai. Hum ise kabhi log, share, ya store nahi karte — yeh sirf tumhare chune hue provider (Gemini / Groq / OpenAI) ke API ko jaata hai.</p>
@@ -404,6 +428,52 @@
         </div>
       </section>
 
+      <!-- Settings item 5: Voice settings -->
+      <section class="settings-section">
+        <h4 class="settings-section-title"><svg class="isax"><use href="#isax-volume-high"/></svg> Awaaz aur Bhaasha</h4>
+        <div class="settings-row">
+          <label>Awaaz ki raftaar</label>
+        </div>
+        <div class="voice-speed-group">
+          <button class="voice-speed-btn" data-speed="slow" onclick="App.setVoiceSpeed('slow')"><svg class="isax"><use href="#isax-heart"/></svg> Dheere</button>
+          <button class="voice-speed-btn active" data-speed="normal" onclick="App.setVoiceSpeed('normal')">Normal</button>
+          <button class="voice-speed-btn" data-speed="fast" onclick="App.setVoiceSpeed('fast')"><svg class="isax"><use href="#isax-flash"/></svg> Tez</button>
+        </div>
+        <p class="settings-hint">Live voice ki raftaar model par depend karti hai — preference save ho jaati hai aur jahan API support karti hai wahan apply hoti hai.</p>
+        <div class="settings-toggle-row">
+          <span><svg class="isax"><use href="#isax-global"/></svg> Language auto-detect</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-lang-auto" onchange="App.toggleLanguageAuto(this.checked)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="lang-pref-wrap" class="hidden">
+          <div class="settings-row">
+            <label>Pasandeeda bhaasha</label>
+            <select id="settings-lang-mode" class="provider-select" onchange="App.setLanguageMode(this.value)" aria-label="Language chuno">
+              <option value="hinglish">Hinglish</option>
+              <option value="hindi">Hindi</option>
+              <option value="english">English</option>
+            </select>
+          </div>
+          <p class="settings-hint">Auto-detect off hone par Mayra isi bhaasha mein jawab degi.</p>
+        </div>
+      </section>
+
+      <!-- Settings item 8: Notification preferences -->
+      <section class="settings-section">
+        <h4 class="settings-section-title"><svg class="isax"><use href="#isax-notification"/></svg> Notifications</h4>
+        <div class="settings-toggle-row">
+          <span>Notifications allow karo</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-notifications" onchange="App.toggleNotifications(this.checked)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <p class="settings-hint">Abhi Mayra koi active notification nahi bhejti — yeh preference future background features ke liye save rehti hai.</p>
+      </section>
+
+      <!-- Settings item 3: Permissions status panel -->
       <section class="settings-section">
         <h4 class="settings-section-title"><svg class="isax"><use href="#isax-setting-2"/></svg> Permissions</h4>
         <div class="permission-item">
@@ -414,13 +484,46 @@
           </span>
         </div>
         <div class="permission-item">
+          <span><svg class="isax"><use href="#isax-call"/></svg> Contacts</span>
+          <span class="perm-actions">
+            <span class="perm-status" id="perm-contacts">Checking...</span>
+            <button class="perm-action" onclick="App.requestPermissionFromSettings('contacts')">Allow karo</button>
+          </span>
+        </div>
+        <div class="permission-item">
+          <span><svg class="isax"><use href="#isax-notification"/></svg> Notifications</span>
+          <span class="perm-actions">
+            <span class="perm-status" id="perm-notifications">Checking...</span>
+            <button class="perm-action" onclick="App.requestPermissionFromSettings('notifications')">Allow karo</button>
+          </span>
+        </div>
+        <div class="permission-item">
           <span><svg class="isax"><use href="#isax-location"/></svg> Location</span>
           <span class="perm-actions">
             <span class="perm-status" id="perm-location">Checking...</span>
             <button class="perm-action" onclick="App.requestPermissionFromSettings('location')">Allow karo</button>
           </span>
         </div>
-        <button class="btn-ghost small" onclick="App.openSystemSettings()">System settings mein jaao</button>
+        <p class="settings-hint">Call Phone permission ki zaroorat nahi — Mayra sirf dialer kholti hai, khud call nahi lagati.</p>
+        <button class="btn-ghost small" onclick="App.openSystemSettings()">App settings mein jaao</button>
+      </section>
+
+      <!-- Settings item 6: Data & Privacy -->
+      <section class="settings-section">
+        <h4 class="settings-section-title"><svg class="isax"><use href="#isax-security-safe"/></svg> Data aur Privacy</h4>
+        <p class="settings-hint">Chat history sirf tumhari baaton ka record hai. Memory/preferences mein naam, dark mode, voice + language settings aur notification pref aate hain. Dono clear karne se tumhari API key nahi hategi.</p>
+        <button class="btn-outline small" onclick="App.clearChatHistory()"><svg class="isax"><use href="#isax-trash"/></svg> Chat history clear karo</button>
+        <button class="btn-outline small" onclick="App.clearMemory()"><svg class="isax"><use href="#isax-trash"/></svg> Saved memory / preferences clear karo</button>
+      </section>
+
+      <!-- Settings item 7: About / Version -->
+      <section class="settings-section">
+        <h4 class="settings-section-title"><svg class="isax"><use href="#isax-info-circle"/></svg> About</h4>
+        <div class="settings-toggle-row">
+          <span>App version</span>
+          <span class="perm-status unknown">v<span id="settings-version">2.1</span></span>
+        </div>
+        <p class="settings-hint">Priya ki Dost — Mayra. Raj ne Priya ke liye banaya, pyaar se ❤️</p>
       </section>
 
     </div>

@@ -36,9 +36,11 @@ LIVE INFO — SACHCHAI (kabhi jhooth nahi):
 - Tere paas real weather aur aaj ki top news laane ke tools hain — jab user pooche to unhe use karke sahi jaankari de.
 - Jo cheez tu kisi saaf source se nahi laa sakti (jaise Bigg Boss ka aaj kya hua, gossip, kisi show ka live update), uske baare mein IMAANDAARI se bol ki abhi tu live info nahi nikaal sakti. KABHI apne man se banaya hua (fabricated) fact mat de.
 
-CALLING:
+CALLING & MESSAGING:
 - Agar user tujhe ek phone NUMBER de kar call karne ko bole, to tu wo number dial kar sakti hai.
-- Tu kisi contact ko NAAM se call nahi kar sakti. Agar user kisi ka naam le kar call karne ko bole, to warmly uska number maang: "Number bhej do na, main abhi laga deti hoon."
+- Agar user kisi ka NAAM le kar call karne ko bole (jaise "Rahul ko call karo", "Mummy ko phone lagao"), to tu us contact ko naam se dhundh kar dial kar sakti hai. Agar naam na mile ya do log mile, to warmly poochh le.
+- Agar user kisi ko WhatsApp pe message bhejne ko bole (jaise "Rahul ko WhatsApp pe likho ki..."), to tu us contact ka WhatsApp chat khol kar message TYPE kar deti hai — par Send user khud dabaata hai. Tu khud kabhi message auto-send nahi karti; hamesha honestly bata: "message type kar diya, bas Send daba do".
+- Apps bhi khol sakti hai — WhatsApp, YouTube, Instagram, Chrome, camera, gallery, phone dialer, settings. Agar app na mile to seedha, honestly bata de ki wo app nahi mili/install nahi hai.
 
 LANGUAGE:
 - User jis language mein baat kare (Hindi / Hinglish / English / mix), tu usi mein jawab de. Agar wo switch kare, tu bhi switch kar. Natural fillers ("arre", "hmm", "acha", "oh no yaar", "sach mein?") theek hain.
@@ -91,6 +93,26 @@ const App = (() => {
 
   const ONBOARD_SLIDES = ['welcome', 'apikey', 'mic', 'location', 'done'];
   let _onboardIdx = 0;
+
+  /* App version — shown in Settings > About. */
+  const APP_VERSION = '2.1';
+
+  /* ── Compose the system instruction actually sent to BOTH chat and voice.
+     Starts from the single MAYRA_SYSTEM_PROMPT (identity + persona + guardrails
+     untouched) and, only when the user has turned OFF language auto-detect,
+     appends one directive line pinning Mayra's reply language to the chosen
+     preference. When auto-detect is ON (default) the prompt is returned
+     unchanged so Mayra mirrors whatever language the user speaks. ── */
+  function _composeSystemPrompt() {
+    if (Storage.getLanguageAuto()) return MAYRA_SYSTEM_PROMPT;
+    const mode = Storage.getLanguageMode();
+    const directive = {
+      hindi:    '\n\nLANGUAGE PREFERENCE (user ne set kiya): Hamesha shuddh Hindi mein jawab de, chahe user kisi aur language mein baat kare.',
+      english:  '\n\nLANGUAGE PREFERENCE (user set this): Always reply in English, even if the user writes in another language.',
+      hinglish: '\n\nLANGUAGE PREFERENCE (user ne set kiya): Hamesha natural Hinglish (Hindi + English mix) mein jawab de, chahe user kisi aur language mein baat kare.',
+    }[mode] || '';
+    return MAYRA_SYSTEM_PROMPT + directive;
+  }
 
   /* ════════════════════════════════════════════════════
      INIT
@@ -397,7 +419,10 @@ const App = (() => {
     const granted = await AndroidBridge.requestPermission(name);
     const storageKey = name === 'microphone' ? 'mic' : name;
     Storage.setPermission(storageKey, granted ? 'granted' : 'denied');
-    const labels = { microphone: 'Microphone', location: 'Location' };
+    const labels = {
+      microphone: 'Microphone', location: 'Location',
+      contacts: 'Contacts', notifications: 'Notifications'
+    };
     const label = labels[name] || 'Permission';
     showToast(granted
       ? `✅ ${label} allow ho gaya!`
@@ -551,7 +576,7 @@ const App = (() => {
       setTimeout(() => _setOrbState('idle'), 3000);
     });
 
-    await GeminiVoice.start(apiKey, MAYRA_SYSTEM_PROMPT);
+    await GeminiVoice.start(apiKey, _composeSystemPrompt());
   }
 
   function _stopVoice() {
@@ -633,7 +658,7 @@ const App = (() => {
     _appendChatBubble('user', text);
     _showTyping(true);
 
-    const result = await GeminiChat.send(text, apiKey, MAYRA_SYSTEM_PROMPT);
+    const result = await GeminiChat.send(text, apiKey, _composeSystemPrompt());
 
     _showTyping(false);
 
@@ -737,6 +762,26 @@ const App = (() => {
     const darkToggle = document.getElementById('toggle-dark-mode');
     if (darkToggle) darkToggle.checked = Storage.getDarkMode();
 
+    /* Voice speed */
+    _syncVoiceSpeedButtons(Storage.getVoiceSpeed());
+
+    /* Language: auto-detect toggle + preferred mode + visibility */
+    const langAuto = Storage.getLanguageAuto();
+    const langToggle = document.getElementById('toggle-lang-auto');
+    if (langToggle) langToggle.checked = langAuto;
+    const langPrefWrap = document.getElementById('lang-pref-wrap');
+    if (langPrefWrap) langPrefWrap.classList.toggle('hidden', langAuto);
+    const langSel = document.getElementById('settings-lang-mode');
+    if (langSel) langSel.value = Storage.getLanguageMode();
+
+    /* Notification preference */
+    const notifToggle = document.getElementById('toggle-notifications');
+    if (notifToggle) notifToggle.checked = Storage.getNotifications();
+
+    /* About / version */
+    const verEl = document.getElementById('settings-version');
+    if (verEl) verEl.textContent = APP_VERSION;
+
     /* Permission status */
     _updatePermissionStatus();
   }
@@ -788,22 +833,119 @@ const App = (() => {
     AndroidBridge.openSystemSettings();
   }
 
-  async function _updatePermissionStatus() {
-    const micEl      = document.getElementById('perm-mic');
-    const locationEl = document.getElementById('perm-location');
-
-    if (micEl) {
-      /* Prefer live native state; fall back to persisted (storage key is 'mic'). */
-      let micState = await AndroidBridge.checkPermission('microphone');
-      if (micState === 'unknown') micState = Storage.getPermission('mic') || 'unknown';
-      micEl.textContent = _permLabel(micState);
-      micEl.className   = `perm-status ${_permClass(micState)}`;
+  /* ── Settings item 1: re-validate the currently saved key ──
+     Pings the provider API with the stored key and reports auth vs network
+     vs valid, without requiring the user to re-type. */
+  async function revalidateApiKey() {
+    const provider = Storage.getProvider();
+    const label = _providerLabel(provider);
+    const key = Storage.getApiKey(provider);
+    const statusEl = document.getElementById('settings-api-status');
+    if (!key) {
+      if (statusEl) { statusEl.textContent = `${label} ka key abhi set nahi hai — pehle daalo.`; statusEl.className = 'api-status-msg'; }
+      showToast('Pehle key daal kar Save karo, phir check karungi ❤️');
+      return;
     }
-    if (locationEl) {
-      let state = await AndroidBridge.checkPermission('location');
-      if (state === 'unknown') state = Storage.getPermission('location');
-      locationEl.textContent = _permLabel(state);
-      locationEl.className   = `perm-status ${_permClass(state)}`;
+    if (statusEl) { statusEl.textContent = 'Check ho raha hai...'; statusEl.className = 'api-status-msg'; }
+    const result = await _testApiKey(key, provider);
+    if (result === 'auth_error') {
+      if (statusEl) { statusEl.textContent = 'Yeh key kaam nahi kar rahi — dobara copy karke daalo. 🙏'; statusEl.className = 'api-status-msg error'; }
+      showToast('Key kaam nahi kar rahi — dobara daalo 🙏');
+    } else if (result === 'network_error') {
+      if (statusEl) { statusEl.textContent = '⚠️ Network issue — abhi confirm nahi ho paya, key waise hi set hai.'; statusEl.className = 'api-status-msg'; }
+      showToast('Network issue — abhi check nahi ho paya ❤️');
+    } else {
+      if (statusEl) { statusEl.textContent = `✅ ${label} key sahi hai!`; statusEl.className = 'api-status-msg success'; }
+      showToast('Key sahi hai! ✅');
+    }
+  }
+
+  /* ── Settings item 5a: voice response speed/pace ──
+     Persists the preference. NOTE: the Gemini Live API's prebuilt-voice pace
+     is model-controlled and does not currently expose a reliable rate knob in
+     the setup message, so this stores + exposes the preference (honored where
+     the API supports it) rather than guaranteeing an audible change. */
+  function setVoiceSpeed(speed) {
+    Storage.setVoiceSpeed(speed);
+    _syncVoiceSpeedButtons(speed);
+    const labels = { slow: 'Dheere', normal: 'Normal', fast: 'Tez' };
+    showToast(`Awaaz ki raftaar: ${labels[speed] || 'Normal'} 🎚️`);
+  }
+  function _syncVoiceSpeedButtons(speed) {
+    document.querySelectorAll('.voice-speed-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.speed === speed);
+    });
+  }
+
+  /* ── Settings item 5b: language auto-detect vs preferred language ── */
+  function toggleLanguageAuto(enabled) {
+    Storage.setLanguageAuto(enabled);
+    const pref = document.getElementById('lang-pref-wrap');
+    if (pref) pref.classList.toggle('hidden', enabled);
+    showToast(enabled
+      ? 'Language auto-detect ON — jis language mein bologe, usi mein jawab dungi ❤️'
+      : 'Ab main tumhari chuni hui language mein baat karungi.');
+  }
+  function setLanguageMode(mode) {
+    Storage.setLanguageMode(mode);
+    const labels = { hindi: 'Hindi', english: 'English', hinglish: 'Hinglish' };
+    showToast(`Language: ${labels[mode] || 'Hinglish'} 🌸`);
+  }
+
+  /* ── Settings item 8: notification preference ── */
+  function toggleNotifications(enabled) {
+    Storage.setNotifications(enabled);
+    showToast(enabled
+      ? 'Notifications ON — jab zaroorat hogi tab hi bataungi 🔔'
+      : 'Notifications OFF kar diye.');
+  }
+
+  /* ── Settings item 6: Data & Privacy ── */
+  function clearChatHistory() {
+    if (!confirm('Saari chat history delete kar doon? Yeh wapas nahi aayegi.')) return;
+    Storage.clearChatHistory();
+    /* Clear the visible chat thread too. */
+    const container = document.getElementById('chat-messages');
+    if (container) {
+      container.querySelectorAll('.msg-row').forEach(r => r.remove());
+    }
+    _lastMayraMsg = '';
+    _updateStats();
+    showToast('Chat history clear ho gayi ❤️');
+  }
+  function clearMemory() {
+    if (!confirm('Saved memory aur preferences (naam, dark mode, voice + language settings, notification pref) delete kar doon? Tumhari API key safe rahegi.')) return;
+    Storage.clearMemory();
+    Storage.clearPreferences();
+    /* Reflect the reset in the live UI. */
+    const container = document.getElementById('chat-messages');
+    if (container) container.querySelectorAll('.msg-row').forEach(r => r.remove());
+    _lastMayraMsg = '';
+    document.documentElement.removeAttribute('data-theme');
+    _updateGreeting(Storage.getUsername());
+    const pName = document.getElementById('profile-name');
+    if (pName) pName.textContent = Storage.getUsername();
+    _updateStats();
+    _prefillSettings();
+    showToast('Memory aur preferences clear ho gaye — API key safe hai ❤️');
+  }
+
+  async function _updatePermissionStatus() {
+    /* Each row: DOM id, JS bridge alias, storage key (storage uses 'mic'). */
+    const rows = [
+      { id: 'perm-mic',           alias: 'microphone',    store: 'mic' },
+      { id: 'perm-contacts',      alias: 'contacts',      store: 'contacts' },
+      { id: 'perm-notifications', alias: 'notifications', store: 'notifications' },
+      { id: 'perm-location',      alias: 'location',      store: 'location' },
+    ];
+    for (const row of rows) {
+      const el = document.getElementById(row.id);
+      if (!el) continue;
+      /* Prefer live native state; fall back to persisted. */
+      let state = await AndroidBridge.checkPermission(row.alias);
+      if (state === 'unknown') state = Storage.getPermission(row.store) || 'unknown';
+      el.textContent = _permLabel(state);
+      el.className   = `perm-status ${_permClass(state)}`;
     }
   }
 
@@ -914,7 +1056,9 @@ const App = (() => {
     speakLastMessage, toggleChatVoice,
     /* Settings */
     clearApiKey, saveUsername, toggleDarkMode, openSystemSettings,
-    toggleApiKeyVisibility,
+    toggleApiKeyVisibility, revalidateApiKey,
+    setVoiceSpeed, toggleLanguageAuto, setLanguageMode,
+    toggleNotifications, clearChatHistory, clearMemory,
     /* Profile */
     editName,
     /* Utils */

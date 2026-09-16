@@ -15,13 +15,16 @@ const MayraFunctions = (() => {
     },
     {
       name: 'openApp',
-      description: 'Opens a specific app on the device by name.',
+      description: 'Opens a specific app or system surface on the device by name. '
+        + 'Handles: "youtube", "instagram", "chrome", "whatsapp", "spotify", "gmail", "maps", "settings", '
+        + 'plus the camera ("camera kholo"), the gallery/photos ("gallery kholo", "photos kholo"), '
+        + 'and the phone dialer ("phone kholo", "dialer kholo"). If the app is not installed it fails gracefully.',
       parameters: {
         type: 'OBJECT',
         properties: {
           appName: {
             type: 'STRING',
-            description: 'The name of the app to open, e.g. "youtube", "instagram", "chrome", "settings", "spotify".'
+            description: 'The name of the app/surface to open, e.g. "youtube", "instagram", "chrome", "settings", "spotify", "camera", "gallery", "phone", "dialer".'
           }
         },
         required: ['appName']
@@ -50,6 +53,44 @@ const MayraFunctions = (() => {
           }
         },
         required: ['phoneNumber']
+      }
+    },
+    {
+      name: 'callContact',
+      description: 'Calls a contact by name from the device contacts. Use when user says "Mom ko call karo", "Call Rahul", "Mummy ko phone lagao".',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          contactName: {
+            type: 'STRING',
+            description: 'The name of the contact as the user referred to them (e.g. "Mom", "Rahul", "Mummy").'
+          }
+        },
+        required: ['contactName']
+      }
+    },
+    {
+      name: 'sendWhatsAppMessage',
+      description: 'Opens a WhatsApp chat with a contact and PRE-TYPES the message — the user still taps Send themselves (Mayra never auto-sends). '
+        + 'Use when user says "Rahul ko WhatsApp pe message bhejo [message]", "WhatsApp Rahul ko [message]", "Mummy ko WhatsApp karo [message]". '
+        + 'Provide the contact by contactName (looked up in contacts) OR by an explicit phoneNumber.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          contactName: {
+            type: 'STRING',
+            description: 'The contact name to message on WhatsApp (e.g. "Rahul", "Mummy"). Omit if a phoneNumber is given.'
+          },
+          phoneNumber: {
+            type: 'STRING',
+            description: 'An explicit phone number to message on WhatsApp (digits, optionally with country code). Omit if contactName is given.'
+          },
+          message: {
+            type: 'STRING',
+            description: 'The message text to pre-type in the WhatsApp chat.'
+          }
+        },
+        required: ['message']
       }
     },
     {
@@ -110,6 +151,26 @@ const MayraFunctions = (() => {
     return 'mausam saaf-suthra';
   }
 
+  /* ── Normalize spoken app names (incl. Hinglish) to a key the native
+     openApp handler understands. Keeps the native package/intent mapping
+     in one place; this only smooths over synonyms/typos. ── */
+  function _normalizeAppName(raw) {
+    const s = raw.toLowerCase();
+    if (/(camera|kaimra|kaimara)/.test(s)) return 'camera';
+    if (/(gallery|gallary|galery|photos|gaileri|photo album|tasveer)/.test(s)) return 'gallery';
+    if (/(dialer|dial pad|phone app|phone dialer)/.test(s)) return 'dialer';
+    if (/\bphone\b/.test(s)) return 'phone';
+    if (/whats\s?app/.test(s)) return 'whatsapp';
+    if (/you\s?tube/.test(s)) return 'youtube';
+    if (/insta(gram)?/.test(s)) return 'instagram';
+    if (/chrome|browser/.test(s)) return 'chrome';
+    if (/spotify/.test(s)) return 'spotify';
+    if (/gmail|mail/.test(s)) return 'gmail';
+    if (/maps|map|naksha/.test(s)) return 'maps';
+    if (/settings|setting/.test(s)) return 'settings';
+    return s;
+  }
+
   /* ── Execute a function call from Gemini's response ── */
   async function execute(toolName, args = {}) {
     console.log(`[Functions] Executing: ${toolName}`, args);
@@ -123,10 +184,14 @@ const MayraFunctions = (() => {
       }
 
       case 'openApp': {
-        const appName = (args.appName || '').toLowerCase();
-        if (!appName) return { ok: false, message: 'App ka naam nahi mila.' };
+        const raw = (args.appName || '').toLowerCase().trim();
+        if (!raw) return { ok: false, message: 'App ka naam nahi mila.' };
+        const appName = _normalizeAppName(raw);
         const r = await AndroidBridge.openApp(appName);
         if (r.success) return { ok: true, message: `${args.appName} khol diya!` };
+        if (r.reason === 'not_found') {
+          return { ok: false, message: `Wo app mujhe nahi mili — shayad install nahi hai.` };
+        }
         return { ok: false, message: `${args.appName} nahi khul paya — shayad install nahi hai.` };
       }
 
@@ -157,6 +222,48 @@ const MayraFunctions = (() => {
         } catch (_) {}
         if (r.success) return { ok: true, message: `${num} par call kar rahi hoon...` };
         return { ok: false, message: 'Call nahi laga paya.' };
+      }
+
+      case 'callContact': {
+        const name = args.contactName;
+        if (!name) return { ok: false, message: 'Contact ka naam nahi mila.' };
+        if (!AndroidBridge.isNative()) {
+          return {
+            ok: false,
+            reason: 'contacts_unavailable_in_browser',
+            message: 'Contacts access abhi browser mein possible nahi — app install karo phir hoga.'
+          };
+        }
+        const r = await AndroidBridge.callContact(name);
+        if (r.success)            return { ok: true, message: `${name} ko call kar rahi hoon...` };
+        if (r.reason === 'permission_denied') return { ok: false, reason: 'permission_denied' };
+        if (r.reason === 'multiple_matches') return { ok: false, reason: 'multiple', matches: r.matches };
+        if (r.reason === 'no_match') return { ok: false, reason: 'no_match', message: `"${name}" contacts mein nahi mila.` };
+        return { ok: false, message: 'Call nahi laga paya.' };
+      }
+
+      case 'sendWhatsAppMessage': {
+        const message = args.message || '';
+        const contactName = args.contactName;
+        const phoneNumber = args.phoneNumber;
+        if (!message) return { ok: false, message: 'Message kya bhejna hai wo batao na.' };
+        if (!contactName && !phoneNumber) {
+          return { ok: false, message: 'Kisko WhatsApp karna hai — naam ya number batao.' };
+        }
+        if (!AndroidBridge.isNative()) {
+          return {
+            ok: false,
+            reason: 'contacts_unavailable_in_browser',
+            message: 'WhatsApp message abhi browser mein possible nahi — app install karo phir hoga.'
+          };
+        }
+        const r = await AndroidBridge.sendWhatsAppMessage({ contactName, phoneNumber, message });
+        if (r.success) return { ok: true, message: `${r.name || contactName || 'WhatsApp'} ka chat khol diya, message type kar diya!` };
+        if (r.reason === 'permission_denied') return { ok: false, reason: 'permission_denied' };
+        if (r.reason === 'multiple_matches') return { ok: false, reason: 'multiple', matches: r.matches };
+        if (r.reason === 'no_match') return { ok: false, reason: 'no_match', message: `"${contactName}" contacts mein nahi mila.` };
+        if (r.reason === 'whatsapp_not_found') return { ok: false, reason: 'whatsapp_not_found', message: 'WhatsApp device par nahi mila.' };
+        return { ok: false, message: 'WhatsApp message nahi bhej payi.' };
       }
 
       case 'getWeather': {
@@ -276,14 +383,53 @@ const MayraFunctions = (() => {
         const list = (result.headlines || []).map((h, i) => `${i + 1}. ${h}`).join('\n');
         return `Aaj ki top khabrein yeh hain:\n${list}`;
       }
+      if (toolName === 'sendWhatsAppMessage') {
+        const who = result && result.name ? result.name : (args.contactName || 'unhe');
+        return `${who} ka WhatsApp khol diya, message type kar diya — bas Send daba do 💚`;
+      }
       const msgs = {
         openWhatsApp: 'WhatsApp khol diya, saheli! ✅',
         openApp:      `${args.appName || 'app'} khol diya! ✅`,
         openUrl:      'Link khol diya! ✅',
         makeCall:     `${args.phoneNumber} par call laga rahi hoon...`,
+        callContact:  `${args.contactName} ko call kar rahi hoon...`,
       };
       return msgs[toolName] || 'Kaam ho gaya! ✅';
     } else {
+      /* WhatsApp message failures — warm Hinglish, honest, never fake. */
+      if (toolName === 'sendWhatsAppMessage') {
+        if (result.reason === 'multiple') {
+          const names = (result.matches || []).map(m => m.name || m).join(', ');
+          return `Do ${args.contactName} mile — ${names} — kaunse wale ko WhatsApp karoon?`;
+        }
+        if (result.reason === 'permission_denied') {
+          return `Contacts dekhne ki permission nahi mili abhi. Ek baar contacts "Allow" kar do, phir main ${args.contactName || 'unka'} WhatsApp chat khol dungi. 💛`;
+        }
+        if (result.reason === 'no_match') {
+          return `"${args.contactName}" mujhe contacts mein nahi mila. Naam ek baar check karo?`;
+        }
+        if (result.reason === 'whatsapp_not_found') {
+          return `WhatsApp device par install nahi hai lagta — pehle wo install karlo, meri jaan.`;
+        }
+        if (result.reason === 'contacts_unavailable_in_browser') {
+          return `WhatsApp message ke liye app chahiye — abhi browser mein yeh possible nahi, sorry yaar.`;
+        }
+        return result.message || 'WhatsApp message nahi bhej payi, sorry.';
+      }
+      /* callContact failures. */
+      if (result.reason === 'multiple') {
+        const names = (result.matches || []).map(m => m.name || m).join(', ');
+        return `Mere paas ${args.contactName} ke do contacts hain: ${names} — kaunsa wala call karoon?`;
+      }
+      if (result.reason === 'permission_denied') {
+        return `Contacts dekhne ki permission nahi mili abhi, meri jaan. Ek baar contacts ki permission "Allow" kar do, phir main ${args.contactName || 'unhe'} turant call laga dungi. 💛`;
+      }
+      if (result.reason === 'no_match') {
+        return `"${args.contactName}" mujhe contacts mein nahi mila. Naam ek baar check karein?`;
+      }
+      if (result.reason === 'contacts_unavailable_in_browser') {
+        return `Contacts access ke liye app chahiye — abhi browser mein yeh possible nahi, sorry yaar.`;
+      }
       return result.message || 'Yeh kaam nahi ho paya, sorry.';
     }
   }

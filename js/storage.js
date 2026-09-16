@@ -13,7 +13,13 @@ const Storage = (() => {
     CHAT_COUNT:     'mayra_chat_count',
     INSTALL_DATE:   'mayra_install_date',
     PERM_MIC:            'mayra_perm_mic',
+    PERM_CONTACTS:       'mayra_perm_contacts',
+    PERM_NOTIFICATIONS:  'mayra_perm_notifications',
     PERM_LOCATION:       'mayra_perm_location',
+    VOICE_SPEED:         'mayra_voice_speed',    /* 'slow' | 'normal' | 'fast' */
+    LANG_AUTO:           'mayra_lang_auto',      /* '1' = auto-detect ON (default) */
+    LANG_MODE:           'mayra_lang_mode',      /* 'hindi' | 'english' | 'hinglish' */
+    NOTIFICATIONS:       'mayra_notifications',  /* '1' = notifications enabled */
   };
 
   /* Supported providers and their per-provider key slots. */
@@ -27,6 +33,8 @@ const Storage = (() => {
   /* Permission name -> storage key map (generalized, no hardcoded ternary). */
   const PERM_KEYS = {
     mic:           KEYS.PERM_MIC,
+    contacts:      KEYS.PERM_CONTACTS,
+    notifications: KEYS.PERM_NOTIFICATIONS,
     location:      KEYS.PERM_LOCATION,
   };
 
@@ -132,6 +140,58 @@ const Storage = (() => {
   function clearChatHistory() { localStorage.removeItem(KEYS.CHAT_HISTORY); }
   function getChatCount()     { return parseInt(localStorage.getItem(KEYS.CHAT_COUNT) || '0', 10); }
 
+  /* ── Voice response speed/pace: 'slow' | 'normal' | 'fast' ── */
+  const VOICE_SPEEDS = ['slow', 'normal', 'fast'];
+  function setVoiceSpeed(speed) {
+    const s = VOICE_SPEEDS.includes(speed) ? speed : 'normal';
+    localStorage.setItem(KEYS.VOICE_SPEED, s);
+  }
+  function getVoiceSpeed() {
+    const s = localStorage.getItem(KEYS.VOICE_SPEED);
+    return VOICE_SPEEDS.includes(s) ? s : 'normal';
+  }
+
+  /* ── Language: auto-detect toggle + preferred default mode ── */
+  function setLanguageAuto(val) { localStorage.setItem(KEYS.LANG_AUTO, val ? '1' : '0'); }
+  function getLanguageAuto() {
+    const v = localStorage.getItem(KEYS.LANG_AUTO);
+    return v === null ? true : v === '1'; /* default ON */
+  }
+  const LANG_MODES = ['hindi', 'english', 'hinglish'];
+  function setLanguageMode(mode) {
+    const m = LANG_MODES.includes(mode) ? mode : 'hinglish';
+    localStorage.setItem(KEYS.LANG_MODE, m);
+  }
+  function getLanguageMode() {
+    const m = localStorage.getItem(KEYS.LANG_MODE);
+    return LANG_MODES.includes(m) ? m : 'hinglish';
+  }
+
+  /* ── Notification preference (Phase A stores it; Phase B honors it) ── */
+  function setNotifications(val) { localStorage.setItem(KEYS.NOTIFICATIONS, val ? '1' : '0'); }
+  function getNotifications() {
+    const v = localStorage.getItem(KEYS.NOTIFICATIONS);
+    return v === null ? false : v === '1'; /* default OFF (Phase A has no active notifications) */
+  }
+
+  /* ── Data & Privacy: wipe stored memory/preferences ──
+     clearMemory: wipes chat history + counters (the "saved memory").
+     clearPreferences: wipes personalization prefs — username, dark mode,
+     voice speed, language settings, notification pref — but NEVER the API
+     key(s) or provider selection (those have their own Remove control). */
+  function clearMemory() {
+    localStorage.removeItem(KEYS.CHAT_HISTORY);
+    localStorage.removeItem(KEYS.CHAT_COUNT);
+  }
+  function clearPreferences() {
+    localStorage.removeItem(KEYS.USERNAME);
+    localStorage.removeItem(KEYS.DARK_MODE);
+    localStorage.removeItem(KEYS.VOICE_SPEED);
+    localStorage.removeItem(KEYS.LANG_AUTO);
+    localStorage.removeItem(KEYS.LANG_MODE);
+    localStorage.removeItem(KEYS.NOTIFICATIONS);
+  }
+
   function getInstallDays() {
     let installed = localStorage.getItem(KEYS.INSTALL_DATE);
     if (!installed) {
@@ -149,7 +209,11 @@ const Storage = (() => {
     setOnboarded, isOnboarded,
     setDarkMode, getDarkMode,
     setPermission, getPermission,
+    setVoiceSpeed, getVoiceSpeed,
+    setLanguageAuto, getLanguageAuto, setLanguageMode, getLanguageMode,
+    setNotifications, getNotifications,
     appendMessage, getChatHistory, clearChatHistory, getChatCount,
+    clearMemory, clearPreferences,
     getInstallDays,
   };
 })();

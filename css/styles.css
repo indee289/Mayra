@@ -1099,6 +1099,37 @@ a { text-decoration: none; }
 .perm-action:hover { background:var(--pink-500);color:var(--white); }
 .perm-action:active { transform:scale(0.96); }
 
+/* Generic hidden utility (used by lang preference wrap etc.) */
+.settings-section .hidden,
+#lang-pref-wrap.hidden { display:none; }
+
+/* Voice speed segmented control */
+.voice-speed-group {
+  display:flex;gap:8px;
+}
+.voice-speed-btn {
+  flex:1;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  font-size:13px;font-weight:700;
+  color:var(--text-secondary);
+  background:var(--lavender-100);
+  border:2px solid transparent;
+  padding:9px 8px;
+  border-radius:var(--radius-md);
+  cursor:pointer;
+  transition:background 0.2s,color 0.2s,border-color 0.2s;
+}
+.voice-speed-btn .isax { width:15px;height:15px;vertical-align:-2px; }
+.voice-speed-btn.active {
+  background:var(--pink-400);
+  color:var(--white);
+  border-color:var(--pink-500);
+}
+.voice-speed-btn:active { transform:scale(0.97); }
+
+/* Data & Privacy destructive buttons keep icon alignment tidy */
+.settings-section .btn-outline.small .isax { width:16px;height:16px;vertical-align:-3px; }
+
 /* ═══════════════════════════════════════════════
    TOAST
 ═══════════════════════════════════════════════ */
