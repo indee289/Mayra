@@ -59,7 +59,7 @@ const GeminiChat = (() => {
           generation_config: {
             temperature: 0.85,
             top_p: 0.95,
-            max_output_tokens: 600,
+            max_output_tokens: 2048,
           }
         };
 
@@ -224,7 +224,7 @@ const GeminiChat = (() => {
         data: {
           system_instruction: { parts: [{ text: systemInstruction }] },
           contents: history2,
-          generation_config: { temperature: 0.85, top_p: 0.95, max_output_tokens: 300 }
+          generation_config: { temperature: 0.85, top_p: 0.95, max_output_tokens: 1024 }
         }
       });
       if (r2.ok) {

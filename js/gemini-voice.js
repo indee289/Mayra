@@ -43,6 +43,7 @@ const GeminiVoice = (() => {
   let _tTurnStart     = 0;   // start of the current model turn (reset each turn)
   let _tFirstAudio    = 0;   // first audio chunk timestamp of the current turn
   let _firstAudioSeen = false; // whether first audio chunk of the current turn was logged
+  let _micResumeLogPending = false; // one-shot: log 'mic-stream-active' on first mic chunk after a turnComplete
 
   function _now() {
     try {
@@ -211,6 +212,18 @@ const GeminiVoice = (() => {
       }
 
       if (sc.modelTurn?.parts) {
+        /* A fresh model turn is producing content. If we were still flagged
+           interrupted from the user cutting off the previous turn, clear it
+           now — otherwise _drainQueue's `!_interrupted` guard would drop this
+           new turn's audio and the model would appear to "not reply". */
+        if (_interrupted) {
+          _interrupted = false;
+          _micResumeLogPending = true;
+          _debugVoice('interrupted-cleared', {
+            ok: true,
+            rawText: 'New modelTurn content arriving: cleared _interrupted so audio plays'
+          });
+        }
         /* Mark the start of this model turn the first time we see any model
            content for it, so first-audio delay can be measured. */
         if (!_tTurnStart) _tTurnStart = _now();
@@ -245,8 +258,18 @@ const GeminiVoice = (() => {
         _tTurnStart = 0;
         _tFirstAudio = 0;
         _firstAudioSeen = false;
-        _emit('status', { state: 'listening' });
+        /* CRITICAL for multi-turn reliability: clear _interrupted so the mic
+           ScriptProcessor (which early-returns while _interrupted is true)
+           resumes streaming audio for the NEXT user utterance. Arm the
+           "mic-stream-active" one-shot log so the very first onaudioprocess
+           after this turnComplete confirms mic is feeding again. */
         _interrupted = false;
+        _micResumeLogPending = true;
+        _debugVoice('interrupted-cleared', {
+          ok: true,
+          rawText: 'turnComplete: _interrupted=false, mic gating released, ready for next turn'
+        });
+        _emit('status', { state: 'listening' });
       }
     }
 
@@ -313,6 +336,16 @@ const GeminiVoice = (() => {
 
       _processor.onaudioprocess = (e) => {
         if (!_sessionActive || _interrupted) return;
+        /* One-shot diagnostic: confirm the mic ScriptProcessor is actually
+           feeding audio again after a turnComplete (i.e. the pipeline
+           recovered for turns 2/3+, not just the first turn). */
+        if (_micResumeLogPending) {
+          _micResumeLogPending = false;
+          _debugVoice('mic-stream-active', {
+            ok: true,
+            rawText: 'Mic streaming resumed after turnComplete (onaudioprocess sending again)'
+          });
+        }
         const float32 = e.inputBuffer.getChannelData(0);
         const pcm16   = _float32ToPCM16(float32);
         _sendAudioChunk(pcm16);
@@ -361,6 +394,18 @@ const GeminiVoice = (() => {
       _playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: OUT_RATE });
     }
 
+    /* CRITICAL for multi-turn reliability: _stopPlayback() suspends the
+       playback context after each turn/interruption. A suspended context
+       plays NO audio, so turns 2/3+ would go silent. Resume it here before
+       draining so queued audio for later turns is actually heard. */
+    if (_playbackCtx.state === 'suspended') {
+      try { await _playbackCtx.resume(); } catch (_) { /* ignore, best effort */ }
+    }
+    _debugVoice('playback-context-state', {
+      ok: _playbackCtx.state === 'running',
+      rawText: `_drainQueue start: playbackCtx.state=${_playbackCtx.state}, queued=${_playQueue.length}`
+    });
+
     while (_playQueue.length > 0 && !_interrupted) {
       const raw = _playQueue.shift();
       try {
@@ -380,7 +425,20 @@ const GeminiVoice = (() => {
     }
 
     _playing = false;
-    if (!_interrupted) {
+    /* Playback fully drained. Return to a clean listening state and make sure
+       a stale interruption can NEVER permanently gate the mic: if the queue
+       emptied on its own, clear _interrupted so onaudioprocess resumes
+       streaming even if a matching turnComplete never arrives (e.g. after an
+       interruption or a tool call that didn't emit its own turnComplete). */
+    if (_playQueue.length === 0) {
+      if (_interrupted) {
+        _interrupted = false;
+        _micResumeLogPending = true;
+        _debugVoice('interrupted-cleared', {
+          ok: true,
+          rawText: 'Playback drained: cleared stale _interrupted, mic gating released'
+        });
+      }
       _emit('status', { state: 'listening' });
     }
   }
